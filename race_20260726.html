@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>レース分析器 — 事実提示ツール</title>
+<style>
+  /* ---- design tokens: an instrument, not a tipster site ----
+     palette: paper-white ground, ink, one measured teal for "model",
+     one warm ochre for "market". divergence is neutral graphite, never red/green. */
+  :root{
+    --paper:#F6F7F9;        /* page */
+    --panel:#FFFFFF;        /* cards */
+    --hi:#EEF1F5;           /* bar tracks, chips, header bands */
+    --line:#E1E5EB;
+    --ink:#131720; --ink-soft:#667085;
+    --model:#5560D8;        /* indigo = p_f (model view) */
+    --market:#1F9E94;       /* teal = market view (unused until odds exist) */
+    --graphite:#98A2B3;     /* neutral divergence — never red/green */
+    --accent:#5560D8;       /* selected state */
+    --hl:#EEF0FD;
+    --mono:ui-monospace,'SFMono-Regular','Cascadia Code',Consolas,monospace;
+    --sans:'Zen Kaku Gothic New','Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;
+  }
+  /* system fonts only: the page must render identically offline and inside cloud
+     viewers, so no webfont is fetched. */
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+       line-height:1.5;-webkit-font-smoothing:antialiased;font-feature-settings:'palt'}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px 80px}
+  /* masthead */
+  header{border-bottom:2px solid var(--ink);padding:26px 0 16px;margin-bottom:2px}
+  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+          color:var(--ink-soft)}
+  h1{font-size:26px;font-weight:700;margin:6px 0 2px;letter-spacing:-.01em}
+  .sub{font-size:13px;color:var(--ink-soft)}
+  /* stance: the verified position of this tool, stated before any number is shown */
+  .stance{margin-top:11px;padding:9px 14px;border-left:3px solid var(--ink);
+          background:var(--hi);font-size:12.5px;line-height:1.6}
+  .stance b{font-family:var(--mono);font-size:12.5px}
+  .legend{display:flex;gap:20px;margin-top:12px;font-size:12px;font-family:var(--mono);flex-wrap:wrap}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:10px;height:10px;border-radius:2px;display:inline-block}
+  /* controls */
+  .bar{display:flex;gap:12px;align-items:center;padding:14px 0;flex-wrap:wrap;
+       border-bottom:1px solid var(--line);margin-bottom:22px}
+  .bar label{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.1em}
+  select,input[type=file],input[type=text]{font-family:var(--mono);font-size:13px;padding:7px 10px;
+       border:1px solid var(--line);background:var(--panel);border-radius:5px;color:var(--ink)}
+  .seg-badge{margin-left:auto;font-family:var(--mono);font-size:12px;display:flex;align-items:center;gap:8px}
+  .q-pill{padding:2px 9px;border-radius:11px;font-size:11px;letter-spacing:.05em;text-transform:uppercase}
+  .q-high{background:#DCEEED;color:#0A5654}
+  .q-mid{background:#F1EAD9;color:#7A5A15}
+  .q-low{background:#EFE7E4;color:#7A4A38}
+  .q-unknown{background:#ECECEC;color:#666}
+  /* panel grid */
+  .grid{display:grid;grid-template-columns:1.55fr 1fr;gap:22px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .phead{padding:13px 18px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:10px}
+  .pnum{font-family:var(--mono);font-size:11px;color:var(--model);font-weight:700}
+  .ptitle{font-size:14px;font-weight:700}
+  .pnote{font-size:11px;color:var(--ink-soft);margin-left:auto}
+  .pbody{padding:6px 0}
+  /* horse rows (panel A) */
+  /* control bar (sort / bracket filter). Lives inside panel A's body. */
+  .ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:11px 18px;
+       border-bottom:1px solid var(--line);background:var(--panel)}
+  .ctl .lab{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--ink-soft);
+            text-transform:uppercase}
+  .tg{font-family:var(--mono);font-size:12px;padding:6px 11px;border-radius:6px;cursor:pointer;
+      border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);line-height:1}
+  .tg.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .wk{width:26px;height:26px;border-radius:6px;cursor:pointer;font-family:var(--mono);
+      font-size:12px;font-weight:600;display:inline-flex;align-items:center;
+      justify-content:center;border:1px solid rgba(0,0,0,.15);padding:0}
+  .wk.off{opacity:.32}
+  .cnt{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+  .wbadge{width:26px;height:26px;border-radius:6px;font-family:var(--mono);font-size:12px;
+          font-weight:600;display:inline-flex;align-items:center;justify-content:center;
+          border:1px solid rgba(0,0,0,.15);flex-shrink:0}
+  .horse{padding:12px 18px 13px;border-bottom:1px solid var(--hi);
+         border-left:3px solid transparent}
+  .horse.hot{background:var(--hl);border-left-color:var(--accent)}
+  .htop{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+  .bandchip{font-family:var(--mono);font-size:10.5px;padding:2px 7px;border-radius:4px;
+            background:var(--hi);color:#344054;flex-shrink:0}
+  /* one metric per line: label / bar / value. Values are mono and right-aligned so the
+     columns line up down the card. */
+  .met{display:grid;grid-template-columns:38px 1fr 66px;gap:9px;align-items:center;
+       margin-top:4px;font-family:var(--mono);font-size:11.5px}
+  .met .k{color:var(--ink-soft);font-size:10.5px}
+  .met .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .bar{height:9px;background:var(--hi);border-radius:3px;overflow:hidden;position:relative}
+  .bar i{position:absolute;top:0;height:100%;display:block}
+  .bar .mid{position:absolute;left:50%;top:0;width:1px;height:100%;background:var(--line)}
+  .fill-model{background:var(--model)} .fill-market{background:var(--market)}
+  .fill-div{background:var(--graphite)}
+  .horse:last-child{border-bottom:none}
+  .rankbox{font-family:var(--mono);font-weight:700;font-size:18px;text-align:center;
+           color:var(--model);border:1.5px solid var(--model);border-radius:6px;padding:5px 0;line-height:1}
+  .rankbox small{display:block;font-size:8px;color:var(--ink-soft);font-weight:400;letter-spacing:.1em}
+  .hnum{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+  .drivers{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
+  .drv{font-size:11px;padding:2px 8px;border-radius:4px;background:var(--hi);
+       font-family:var(--mono);display:inline-flex;gap:4px;align-items:center}
+  .drv .up{color:var(--model)} .drv .dn{color:var(--graphite)}
+  .hname{font-size:15px;font-weight:700;color:var(--ink);overflow:hidden;
+         text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+  .facts{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:4px;
+         font-family:var(--mono);font-size:12px;color:var(--ink-soft);line-height:1.7}
+  .facts b{font-weight:400;color:var(--ink)}
+  .scorebar{width:120px}
+  .scorebar .track{height:6px;background:var(--hi);border-radius:3px;overflow:hidden}
+  .scorebar .fill{height:100%;background:var(--model)}
+  .scorebar .val{font-family:var(--mono);font-size:12px;color:var(--ink);margin-top:3px;
+                 text-align:right;font-variant-numeric:tabular-nums}
+  /* market reconcile (panel B) */
+  .recon{padding:14px 18px}
+  .agree{font-family:var(--mono);font-size:13px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--hi)}
+  .agree b{font-size:22px;color:var(--ink)}
+  .mrow{display:grid;grid-template-columns:30px 1fr 1fr 46px;gap:8px;align-items:center;
+        padding:7px 0;font-family:var(--mono);font-size:12px}
+  .mrow .mh{color:var(--ink-soft)}
+  .track2{height:16px;background:var(--hi);border-radius:3px;position:relative;overflow:hidden}
+  .track2 .mk{position:absolute;top:0;height:100%;width:3px}
+  .mk.model{background:var(--model)} .mk.market{background:var(--market)}
+  .dv{text-align:right;font-weight:700;color:var(--graphite)}
+  .colhead{display:grid;grid-template-columns:30px 1fr 1fr 46px;gap:8px;font-family:var(--mono);
+           font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);
+           padding-bottom:6px;border-bottom:1px solid var(--line);margin-bottom:4px}
+  /* score band (unconditioned, demoted) */
+  .bandwrap{padding:14px 18px}
+  .band{display:grid;grid-template-columns:70px 1fr 54px;gap:10px;align-items:center;
+        padding:6px 0;font-family:var(--mono);font-size:12px}
+  .band .lbl{color:var(--ink-soft)}
+  .band .bt{height:14px;background:var(--hi);border-radius:3px;overflow:hidden}
+  .band .bf{height:100%;background:var(--graphite);opacity:.55}
+  /* ---- panel E: memory vs prediction (the centrepiece) ---- */
+  .contrast{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .cside{padding:16px 18px}
+  .cside+.cside{border-left:1px solid var(--line)}
+  .ctag{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+        padding:3px 8px;border-radius:3px;display:inline-block;margin-bottom:3px}
+  .ctag.honest{background:#DCEEED;color:#0A5654}
+  .ctag.memo{background:#EFE7E4;color:#7A4A38}
+  .cyears{font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-bottom:10px}
+  .ctbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px}
+  .ctbl th{font-weight:400;color:var(--ink-soft);font-size:9.5px;letter-spacing:.06em;
+           text-transform:uppercase;padding:0 0 5px;text-align:right;border-bottom:1px solid var(--line)}
+  .ctbl th:first-child{text-align:left}
+  .ctbl td{padding:5px 0;text-align:right;border-bottom:1px solid var(--hi);
+           font-variant-numeric:tabular-nums}
+  .ctbl td:first-child{text-align:left;color:var(--ink-soft);font-size:11px}
+  .ctbl td.allcol{color:var(--market);border-right:1px solid var(--line);padding-right:9px}
+  .ctbl th.allcol{color:var(--market);border-right:1px solid var(--line);padding-right:9px}
+  .ctbl td.dim{color:#B9BCBE}
+  .cread{margin-top:11px;font-size:11.5px;color:var(--ink-soft);line-height:1.65}
+  .verdictbar{padding:13px 18px;background:var(--hi);border-top:1px solid var(--line);
+              font-size:12.5px;line-height:1.65}
+  .verdictbar b{font-family:var(--mono)}
+  /* notice / footer */
+  .notice{margin:22px 0 0;padding:14px 18px;border:1px dashed var(--graphite);border-radius:8px;
+          background:#FCFBF9;font-size:12.5px;color:var(--ink-soft);display:flex;gap:12px}
+  .notice .bang{font-family:var(--mono);font-weight:700;color:var(--ink);flex-shrink:0}
+  .foot{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);
+        font-size:11.5px;color:var(--ink-soft);font-family:var(--mono);line-height:1.7}
+  .empty{padding:60px 20px;text-align:center;color:var(--ink-soft);font-size:13px}
+  .full{margin-top:22px}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}.contrast{grid-template-columns:1fr}
+    .cside+.cside{border-left:none;border-top:1px solid var(--line)}}
+  /* phone: two-line card. rank box and score column shrink, the name line stays legible. */
+  @media(max-width:560px){
+    .wrap{padding:0 12px 60px}
+    .horse{padding:11px 12px 12px}
+    .met{grid-template-columns:34px 1fr 60px;gap:8px}
+    .ctl{padding:10px 12px}
+    .phead{padding:11px 12px}
+  }
+</style>
+<style>
+ /* 追加パネル（market-edge 転用）専用。既存クラスには触れない */
+ .xpanel{margin:18px 0;border:1px solid var(--line,#E2DFD8);border-radius:9px;background:#fff}
+ .xpanel summary{cursor:pointer;padding:11px 14px;font-size:13px}
+ .xpanel .xbody{padding:4px 14px 12px}
+ .xrow{display:flex;gap:8px;align-items:center;font-size:12.5px;padding:2.5px 0}
+ .xrow .xnum{width:38px;font-family:ui-monospace,Consolas,monospace}
+ .xrow .xnm{width:110px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+ .xrow .xbarw{flex:1;background:#F2EFE8;border-radius:3px;height:10px;overflow:hidden}
+ .xrow .xbar{display:block;height:10px;background:#B9B4A8}
+ .xrow .xbar.xneg{background:#C0392B}
+ .xrow .xval{width:150px;text-align:right;font-family:ui-monospace,Consolas,monospace}
+ .xrow .xc{width:72px;text-align:right;font-family:ui-monospace,Consolas,monospace}
+ .xrow.xhead .xc{font-size:10.5px;color:#5A6165}
+ .xc.xdim,.xdim{color:#A8A29A}
+ .xnote{margin-top:10px;font-size:11.5px;color:#5A6165;border-left:3px solid #B9B4A8;
+        padding:6px 10px;background:#FBFAF7}
+ @media(max-width:860px){.xrow .xnm{width:70px}.xrow .xval{width:118px}.xrow .xc{width:56px}}
+</style>
+
+<style>
+  .daybar{display:flex;gap:12px;align-items:center;padding:12px 0;flex-wrap:wrap;
+          border-bottom:1px solid var(--line);margin-bottom:6px}
+  .daybar label{font-family:var(--mono);font-size:11px;color:var(--ink-soft);
+          text-transform:uppercase;letter-spacing:.1em}
+  .daybar select{font-family:var(--mono);font-size:15px;padding:9px 12px;min-width:270px}
+  .daybar .cnt{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+  @media(max-width:860px){.daybar select{min-width:0;width:100%;font-size:16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="kicker">Race Analysis Instrument · 全JRA平地対応</div>
+    <h1>レース分析器</h1>
+    <div class="sub">モデル評価と市場評価を並べて見る道具。買い目・妙味・見送りは判定しません。</div>
+    <div class="stance" id="stance">
+      検証済みの立ち位置: <b>市場相対 β = −0.110</b>
+      <span style="color:var(--ink-soft)">（95%CI [−0.144, −0.080]／探索期 2020-2023・10,330レース・確定オッズ相対）</span><br>
+      <b>このモデルは市場（オッズ）に勝ちません。</b>
+      モデルと市場の評価が割れたとき、平均して市場のほうが正しいことが測定済みです。
+      本ツールが出すのは「レースを読むための事実」だけで、収益の主張は一切しません。
+    </div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--model)"></i>モデル評価（オッズ未使用）</span>
+      <span><i class="dot" style="background:var(--market)"></i>市場（オッズ由来の支持率）</span>
+      <span><i class="dot" style="background:var(--graphite)"></i>乖離・中立（右=モデル高評価／左=市場高評価）</span>
+    </div>
+  </header>
+
+  <div class="bar">
+    <label>データ読込</label>
+    <input type="file" id="file" accept=".json" multiple>
+    <span style="font-size:11px;color:var(--ink-soft)">race_analysis.json / seg_rho.json / score_band.json / score_band_cond.json</span>
+    <div class="seg-badge" id="segBadge"></div>
+  </div>
+
+  <div id="loaderr" style="display:none;margin:0 0 18px;padding:12px 16px;border:1px solid var(--ink);border-radius:8px;background:#FDF6F2;font-size:12.5px;line-height:1.6"></div>
+  <div id="app"></div>
+</div>
+
+<script>
+// ============================================================================
+// Embedded measured data (real output, 2026-07-18). File load overrides these.
+//   seg_rho          : analyze_core --segrho  (train-internal CV 2000-2017; valid not consumed)
+//   score_band       : analyze_core --band    (2000-2019, UNCONDITIONED, in-sample heavy)
+//   score_band_cond  : band_conditioned.py    (popularity held constant, in/out split)
+//   g2               : G2_REPORT.json         (market-relative beta)
+// ============================================================================
+const SEG_RHO={"dirt1200":{"rho":0.4664042122323623,"n":3976,"quality":"high"},"dirt1600":{"rho":0.45849737999672213,"n":4858,"quality":"high"},"dirt2000":{"rho":0.4523886955331792,"n":291,"quality":"high"},"dirt2400":{"rho":0.45358665676849536,"n":132,"quality":"high"},"dirt800":{"rho":0.424000479615805,"n":636,"quality":"high"},"turf1200":{"rho":0.4108179363884565,"n":3142,"quality":"high"},"turf1600":{"rho":0.45280768540985933,"n":3666,"quality":"high"},"turf2000":{"rho":0.4585949747652105,"n":2284,"quality":"high"},"turf2400":{"rho":0.44335273509075535,"n":651,"quality":"high"},"turf2800":{"rho":0.3989059873734797,"n":18,"quality":"low"},"turf3200":{"rho":0.3729908400599626,"n":12,"quality":"low"},"turf3600":{"rho":0.6051048624578036,"n":6,"quality":"low"},"turf800":{"rho":0.3679711009610547,"n":167,"quality":"high"}};
+
+const SCORE_BAND={"0":{"in3_rate":0.4908098393335778,"win_rate":0.2267663752188441,"n":193631},
+"1":{"in3_rate":0.2716594932853703,"win_rate":0.07242720789780661,"n":174023},
+"2":{"in3_rate":0.16497775371758217,"win_rate":0.03364292038142929,"n":177333},
+"3":{"in3_rate":0.0980445113576941,"win_rate":0.015428995017899932,"n":174023},
+"4":{"in3_rate":0.04572305051630162,"win_rate":0.004939331136046161,"n":219058}};
+
+// popularity-held-constant (SPEC panel A supplement). Rates are 複勝率 (in3).
+const BAND_COND={
+ meta:{oos_years:"2018-2019",insample_years:"2000-2017",races_ok:66219},
+ oos:{
+  pop1   :{label:"1番人気",       n:6604 ,all:0.643,bands:{0:0.656,1:0.581,2:0.536,3:0.620,4:null}},
+  pop2   :{label:"2番人気",       n:6603 ,all:0.525,bands:{0:0.538,1:0.508,2:0.448,3:0.500,4:0.690}},
+  pop3   :{label:"3番人気",       n:6600 ,all:0.426,bands:{0:0.438,1:0.419,2:0.405,3:0.438,4:0.317}},
+  pop4_5 :{label:"4-5番人気",     n:13195,all:0.298,bands:{0:0.307,1:0.309,2:0.285,3:0.271,4:0.271}},
+  pop6_9 :{label:"6-9番人気",     n:25894,all:0.151,bands:{0:0.202,1:0.171,2:0.156,3:0.141,4:0.105}},
+  pop10up:{label:"10番人気以下",  n:32680,all:0.044,bands:{0:0.075,1:0.067,2:0.067,3:0.048,4:0.032}}
+ },
+ insample:{
+  pop1   :{label:"1番人気",       n:59615 ,all:0.648,bands:{0:0.672,1:0.532,2:0.452,3:0.455,4:0.472}},
+  pop2   :{label:"2番人気",       n:59604 ,all:0.510,bands:{0:0.549,1:0.444,2:0.397,3:0.386,4:0.384}},
+  pop3   :{label:"3番人気",       n:59597 ,all:0.411,bands:{0:0.454,1:0.389,2:0.346,3:0.325,4:0.290}},
+  pop4_5 :{label:"4-5番人気",     n:119162,all:0.297,bands:{0:0.362,1:0.292,2:0.262,3:0.234,4:0.222}},
+  pop6_9 :{label:"6-9番人気",     n:235997,all:0.154,bands:{0:0.250,1:0.188,2:0.149,3:0.124,4:0.101}},
+  pop10up:{label:"10番人気以下",  n:312517,all:0.044,bands:{0:0.134,1:0.092,2:0.069,3:0.049,4:0.027}}
+ }};
+
+const G2={beta:-0.11031833125989945,ci:[-0.14420502019688847,-0.07953025768347884],races:10330,
+          window:"2020-2023",verdict:"FAIL"};
+
+const SAMPLE_RACE={"rkey":"サンプル","segment":"turf1600","seg_rho":null,"agreement_spearman":-0.10,
+  "horses":[
+    {"umaban":5,"pf_rank":1,"pf_score":0.49,"market_q":0.125,"market_rank":5,"divergence":4,
+     "drivers":[{"label":"通算複勝率","direction":"+","weight":0.58},{"label":"前走上がり順位","direction":"+","weight":0.34},{"label":"騎手成績","direction":"+","weight":0.19}]},
+    {"umaban":10,"pf_rank":2,"pf_score":0.32,"market_q":0.318,"market_rank":1,"divergence":-1,
+     "drivers":[{"label":"通算勝率","direction":"+","weight":0.41},{"label":"当該条件の勝率","direction":"+","weight":0.22},{"label":"馬体重増減","direction":"-","weight":0.09}]},
+    {"umaban":2,"pf_rank":3,"pf_score":0.21,"market_q":0.216,"market_rank":2,"divergence":-1,
+     "drivers":[{"label":"父の適性","direction":"+","weight":0.18},{"label":"前走着順","direction":"+","weight":0.14},{"label":"レース間隔","direction":"-","weight":0.07}]},
+    {"umaban":8,"pf_rank":4,"pf_score":0.14,"market_q":0.159,"market_rank":4,"divergence":0,
+     "drivers":[{"label":"当該条件の勝率","direction":"+","weight":0.11},{"label":"乗り替わり","direction":"-","weight":0.08},{"label":"クラス変動","direction":"-","weight":0.05}]},
+    {"umaban":1,"pf_rank":5,"pf_score":0.09,"market_q":0.182,"market_rank":3,"divergence":-2,
+     "drivers":[{"label":"前走タイム差","direction":"-","weight":0.09},{"label":"馬齢","direction":"-","weight":0.05},{"label":"斤量","direction":"-","weight":0.04}]}
+  ]};
+
+const FOOTER="本ツールは馬券の当否を予測しません。判断は利用者に委ねられます（市場相対 β<0 に基づく設計）。";
+
+const QLAB={high:["読み精度: 高","q-high","このタイプはモデルがよく読めています"],
+  mid:["読み精度: 中","q-mid","標準的な読み精度です"],
+  low:["読み精度: 低","q-low","このタイプは読みが不安定です。参考程度に"],
+  unknown:["読み精度: 不明","q-unknown","このセグメントの検証データがありません"]};
+
+// escape everything that originates from a loaded JSON file before it reaches innerHTML
+const esc = t => String(t==null?'':t).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pct=v=>v==null?null:(v*100).toFixed(1);
+const POPS=["pop1","pop2","pop3","pop4_5","pop6_9","pop10up"];
+
+// ---- panel E: the same model, two mirrors -------------------------------------
+function condTable(block,side){
+  if(!block) return '';
+  let rows=POPS.map(k=>{
+    const d=block[k]; if(!d) return '';
+    const cells=[0,1,2,3,4].map(b=>{
+      const v=d.bands?d.bands[b]:null;
+      if(v==null) return '<td class="dim">—</td>';
+      return `<td>${pct(v)}</td>`;
+    }).join('');
+    return `<tr><td>${esc(d.label)}</td><td class="allcol">${pct(d.all)}</td>${cells}</tr>`;
+  }).join('');
+  return `<table class="ctbl">
+    <tr><th>人気帯</th><th class="allcol">帯全体</th>
+      <th>band0</th><th>band1</th><th>band2</th><th>band3</th><th>band4</th></tr>
+    ${rows}</table>`;
+}
+
+function panelE(cond){
+  if(!cond) return '';
+  const oos=condTable(cond.oos), ins=condTable(cond.insample);
+  const oy=(cond.meta&&cond.meta.oos_years)||'2018-2019';
+  const iy=(cond.meta&&cond.meta.insample_years)||'2000-2017';
+  return `<div class="panel full">
+    <div class="phead"><span class="pnum">E</span>
+      <span class="ptitle">人気を揃えた比較 — モデルの記憶と、実際の予測力</span>
+      <span class="pnote">複勝率（過去の実績・予言ではありません）／集計対象: pf_model_g1.txt</span></div>
+    <div class="contrast">
+      <div class="cside">
+        <span class="ctag honest">Out-of-sample</span>
+        <div class="cyears">${esc(oy)}／モデルが学習に使っていない期間 — <b>信用してよい数字</b></div>
+        ${oos}
+        <div class="cread">同じ人気帯の中では、band0（モデル最上位）から band4（最下位）まで
+        ほぼ横並びです。1番人気の行は band2 で下がり band3 で戻る＝単調ですらなく、
+        この程度のばらつきは偶然の範囲です。<b>市場が値を付けたあと、モデルが足す情報はほぼありません。</b></div>
+      </div>
+      <div class="cside">
+        <span class="ctag memo">In-sample</span>
+        <div class="cyears">${esc(iy)}／モデルが学習に使った期間 — <b>信用してはいけない数字</b></div>
+        ${ins}
+        <div class="cread">すべての人気帯で band0 から band4 へきれいに単調に下がります。
+        10番人気以下では 13.4% → 2.7% と5倍の開きです。これはモデルが答えを
+        <b>覚えている</b>姿であって、予測力ではありません。左右で違うのは
+        「モデルが学習に使った期間かどうか」だけです。</div>
+      </div>
+    </div>
+    <div class="verdictbar">
+      <b>この2枚が並んでいる理由。</b>
+      過去データに当てはめれば右のような美しい単調性はいくらでも作れます。左（未学習期間）で
+      それが消えることを確認しない限り、その数字は予測力の証拠になりません。本ツールは
+      両方を常に並べて表示します。<br>
+      <span style="color:var(--ink-soft)">※ 下位人気帯（6-9番人気・10番人気以下）は
+      out-of-sample でも多少の傾斜が残りますが、これを狙い目としては表示しません。10番人気以下
+      band0 の複勝率 7.5% は控除率（20-25%）を超えず、また市場相対 β=−0.110 は
+      この傾斜を含んだ全母集団での測定結果です。部分集合だけを取り出した再検定は行いません。<br>
+      ※ この2枚の表と β は <b>pf_model_g1.txt</b>（2000-2017学習）に対する集計です。上部で別のモデルの
+      スコアを表示している場合、ここの数字はそのモデルの性質ではありません。未測定のモデルについては
+      同種の集計を行っていないため、表示しません。</span>
+    </div>
+  </div>`;
+}
+
+// ---- panel A: bracket colours, sort and filter ---------------------------------
+// JRA bracket colours are fixed by the rules of racing, not by this page's theme, so
+// they are literals rather than CSS variables.
+const WAKU_BG=['','#ffffff','#1a1a1a','#d63a2f','#2f6fd6','#f2c531','#35a06a','#e8842b','#e58ba8'];
+const WAKU_FG=['','#111111','#ffffff','#ffffff','#ffffff','#111111','#ffffff','#ffffff','#111111'];
+const FACT_ORDER=[['kisyu','騎'],['chokyo','厩'],['sire','父'],['age',''],
+  ['futan',''],['class',''],['career',''],['seg',''],['prev1','前走'],
+  ['prev1_l3',''],['rest','']];
+let CUR_RACE=null, SORT_BY='pf', HOT_ON=true, HOT_ONLY=false;
+const WAKU_ON=new Set();
+const DIV_HOT=2.0;      // |div| in percentage points that counts as a wide gap
+const DIV_FLOOR=4.5;    // bar scale floor, so small spreads do not look dramatic
+const BANDS=['A','B','C','D','E'];
+
+// p_f values are per-horse model outputs; they do not sum to 1 across a race. Dividing
+// by the race total turns them into a share that can sit next to the market share, which
+// is what makes the difference between the two meaningful at all. The label on screen
+// says 支持率 for exactly this reason -- it is a normalised share, not a win probability.
+function withShares(race){
+  const hs=race.horses;
+  const tot=hs.reduce((s,h)=>s+(h.pf_score||0),0);
+  const n=hs.length;
+  return hs.map(h=>{
+    const pf=tot>0?(h.pf_score/tot)*100:0;
+    const mkt=(h.market_q!=null)?h.market_q*100:null;
+    return {h:h, pf:pf, mkt:mkt, div:(mkt==null?null:pf-mkt),
+            band:BANDS[Math.min(4,Math.floor((h.pf_rank-1)/n*5))]};
+  });
+}
+
+function factsHtml(f){
+  if(!f) return '';
+  let s='';
+  for(const pair of FACT_ORDER){
+    const k=pair[0], pre=pair[1];
+    if(!f[k]) continue;
+    s+='<span>'+(pre?esc(pre)+' ':'')+'<b>'+esc(f[k])+'</b></span>';
+  }
+  return s?'<div class="facts">'+s+'</div>':'';
+}
+
+function wakuBadge(w){
+  if(!w||w<1||w>8) return '';
+  return '<span class="wbadge" style="background:'+WAKU_BG[w]+';color:'+WAKU_FG[w]
+        +'">'+esc(w)+'</span>';
+}
+
+function controlBar(shown,total,hasWaku,hasMkt){
+  let s='<div class="ctl"><span class="lab">並び</span>';
+  s+='<button class="tg'+(SORT_BY==='pf'?' on':'')+'" onclick="setSort(\'pf\')">モデル順</button>';
+  s+='<button class="tg'+(SORT_BY==='num'?' on':'')+'" onclick="setSort(\'num\')">馬番順</button>';
+  if(hasMkt){
+    s+='<button class="tg'+(SORT_BY==='div'?' on':'')+'" onclick="setSort(\'div\')">乖離順</button>';
+    s+='<span class="lab" style="margin-left:6px">乖離</span>';
+    s+='<button class="tg'+(HOT_ON?' on':'')+'" onclick="toggleHot()">強調</button>';
+    s+='<button class="tg'+(HOT_ONLY?' on':'')+'" onclick="toggleHotOnly()">大のみ</button>';
+  }
+  if(hasWaku){
+    s+='<span class="lab" style="margin-left:6px">枠</span>';
+    for(let w=1;w<=8;w++){
+      const on=WAKU_ON.size===0||WAKU_ON.has(w);
+      s+='<button class="wk'+(on?'':' off')+'" style="background:'+WAKU_BG[w]
+        +';color:'+WAKU_FG[w]+'" onclick="toggleWaku('+w+')">'+w+'</button>';
+    }
+    s+='<button class="tg'+(WAKU_ON.size===0?' on':'')+'" onclick="clearWaku()">全</button>';
+  }
+  s+='<span class="cnt">'+esc(shown)+'/'+esc(total)+'頭</span></div>';
+  return s;
+}
+
+function metRow(k,cls,leftPct,widthPct,val,mid){
+  return '<div class="met"><span class="k">'+esc(k)+'</span>'
+    +'<span class="bar">'+(mid?'<span class="mid"></span>':'')
+    +'<i class="'+cls+'" style="left:'+leftPct.toFixed(1)+'%;width:'+widthPct.toFixed(1)+'%"></i>'
+    +'</span><span class="v">'+esc(val)+'</span></div>';
+}
+
+function buildPanelA(race){
+  const all=withShares(race), total=all.length;
+  const hasMkt=all.some(r=>r.mkt!=null);
+  const hasWaku=all.some(r=>r.h.waku);
+  const maxPf=Math.max.apply(null,all.map(r=>r.pf));
+  const maxMkt=hasMkt?Math.max.apply(null,all.map(r=>r.mkt||0)):1;
+  const maxDiv=hasMkt?Math.max.apply(null,all.map(r=>Math.abs(r.div||0))):0;
+  const divMax=Math.max(DIV_FLOOR,maxDiv);
+  let rs=all.slice();
+  if(WAKU_ON.size) rs=rs.filter(r=>WAKU_ON.has(r.h.waku));
+  if(HOT_ONLY&&hasMkt) rs=rs.filter(r=>r.div!=null&&Math.abs(r.div)>=DIV_HOT);
+  if(SORT_BY==='num') rs.sort((a,b)=>a.h.umaban-b.h.umaban);
+  else if(SORT_BY==='div'&&hasMkt) rs.sort((a,b)=>Math.abs(b.div||0)-Math.abs(a.div||0));
+  else rs.sort((a,b)=>a.h.pf_rank-b.h.pf_rank);
+  let s=controlBar(rs.length,total,hasWaku,hasMkt);
+  if(!rs.length) return s+'<div class="empty">該当する馬がありません。</div>';
+  for(const r of rs){
+    const h=r.h;
+    let drv='';
+    for(const d of h.drivers){
+      drv+='<span class="drv"><span class="'+(d.direction==='+'?'up':'dn')+'">'
+          +esc(d.direction)+'</span>'+esc(d.label)+'</span>';
+    }
+    drv+=factsHtml(h.facts);
+    const nm=(h.facts&&h.facts.bamei)?'<span class="hname">'+esc(h.facts.bamei)+'</span>'
+             :'<span class="hname">馬番 '+esc(h.umaban)+'</span>';
+    const hot=HOT_ON&&hasMkt&&r.div!=null&&Math.abs(r.div)>=DIV_HOT;
+    s+='<div class="horse'+(hot?' hot':'')+'">'
+      +'<div class="htop"><span class="rankbox" style="padding:3px 7px;font-size:14px">'
+      +esc(h.pf_rank)+'</span>'+wakuBadge(h.waku)+nm
+      +'<span class="bandchip" title="レース内スコア順位帯">'+esc(r.band)+'</span>'
+      +'<span class="hnum">'+esc(h.umaban)+'</span></div>';
+    s+=metRow('モデル','fill-model',0,maxPf>0?Math.max(2,r.pf/maxPf*100):2,
+              r.pf.toFixed(1)+'%',false);
+    if(r.mkt!=null){
+      s+=metRow('市場','fill-market',0,maxMkt>0?Math.max(2,r.mkt/maxMkt*100):2,
+                (h.odds!=null?h.odds.toFixed(1)+'倍':r.mkt.toFixed(1)+'%'),false);
+      const half=Math.min(Math.abs(r.div)/divMax,1)*50;
+      const left=r.div>=0?50:50-half;
+      s+=metRow('乖離','fill-div',left,Math.max(half,0.6),
+                (r.div>=0?'+':'')+r.div.toFixed(1),true);
+    }
+    s+='<div class="drivers" style="margin-top:7px">'+drv+'</div></div>';
+  }
+  return s;
+}
+
+function refreshA(){
+  const el=document.getElementById('panelA');
+  if(el&&CUR_RACE) el.innerHTML=buildPanelA(CUR_RACE);
+}
+function setSort(k){ SORT_BY=k; refreshA(); }
+function toggleHot(){ HOT_ON=!HOT_ON; refreshA(); }
+function toggleHotOnly(){ HOT_ONLY=!HOT_ONLY; refreshA(); }
+function toggleWaku(w){
+  if(WAKU_ON.has(w)) WAKU_ON.delete(w); else WAKU_ON.add(w);
+  if(WAKU_ON.size===8) WAKU_ON.clear();
+  refreshA();
+}
+function clearWaku(){ WAKU_ON.clear(); refreshA(); }
+
+// ---- 追加パネル（market-edge 転用。race.drift / race.pairs が無ければ何も出さない） ----
+function fmtHM(ht){ return ht&&ht.length===8 ? (+ht.slice(4,6))+'時'+ht.slice(6,8)+'分' : '不明'; }
+function fmtMDHM(ht){ return ht&&ht.length===8 ? (+ht.slice(0,2))+'/'+(+ht.slice(2,4))+' '+ht.slice(4,6)+':'+ht.slice(6,8) : '--'; }
+function renderExtras(race){
+  const box=document.getElementById('extras');
+  if(!box) return;
+  box.innerHTML='';
+  if(!race) return;
+  const names={};
+  (race.horses||[]).forEach(h=>{ if(h&&h.umaban!=null) names[+h.umaban]=h.name||''; });
+  let out='';
+  const d=race.drift;
+  if(d&&d.rows&&d.rows.length){
+    const rows=d.rows.slice().sort((a,b)=>(+a.umaban)-(+b.umaban));
+    const top=rows.slice().sort((a,b)=>Math.abs(b.drift)-Math.abs(a.drift)).slice(0,3)
+                  .map(r=>+r.umaban);
+    const mx=Math.max.apply(null,rows.map(r=>Math.abs(r.drift)).concat([1e-9]));
+    let t='';
+    rows.forEach(r=>{
+      const w=Math.min(100,Math.abs(r.drift)/mx*100).toFixed(1);
+      const neg=r.drift<0;
+      t+='<div class="xrow"><span class="xnum">'+r.umaban+(top.indexOf(+r.umaban)>=0?'★':'')+'</span>'
+        +'<span class="xnm">'+esc(names[+r.umaban]||'')+'</span>'
+        +'<span class="xbarw"><span class="xbar'+(neg?' xneg':'')+'" style="width:'+w+'%"></span></span>'
+        +'<span class="xval">'+(r.drift>0?'+':'')+(+r.drift).toFixed(3)
+        +' <small>('+(+r.odds_base).toFixed(1)+'→'+(+r.odds_cur).toFixed(1)+')</small></span></div>';
+    });
+    out+='<details class="xpanel"><summary>オッズ変動（0B41断面）　基準 '
+      +fmtMDHM(d.ht_base)+' → 現在 '+fmtMDHM(d.ht_cur)
+      +'　<small>負=短縮=資金流入・★=変動幅上位3頭</small></summary>'
+      +'<div class="xbody">'+t
+      +'<div class="xnote">オッズ変動は勝ち馬と相関することが測定されているが、'
+      +'その情報は確定オッズにほぼ織り込まれる。変動を根拠に市場に勝てるわけではない。</div>'
+      +'</div></details>';
+  }
+  const p=race.pairs;
+  if(p&&p.rows&&p.rows.length){
+    const rows=p.rows.slice().sort((a,b)=>(+a.umaban)-(+b.umaban));
+    let t='<div class="xrow xhead"><span class="xnum">馬</span><span class="xnm"></span>'
+      +'<span class="xc">連対λ=1</span><span class="xc">連対割引</span><span class="xc xdim">差</span>'
+      +'<span class="xc">複勝圏λ=1</span><span class="xc">複勝圏割引</span><span class="xc xdim">差</span></div>';
+    rows.forEach(r=>{
+      const d2=r.p2_disc-r.p2_plain, d3=r.p3_disc-r.p3_plain;
+      t+='<div class="xrow"><span class="xnum">'+r.umaban+'</span>'
+        +'<span class="xnm">'+esc(names[+r.umaban]||'')+'</span>'
+        +'<span class="xc">'+(r.p2_plain*100).toFixed(1)+'%</span>'
+        +'<span class="xc"><b>'+(r.p2_disc*100).toFixed(1)+'%</b></span>'
+        +'<span class="xc xdim">'+(d2>=0?'+':'')+(d2*100).toFixed(1)+'</span>'
+        +'<span class="xc">'+(r.p3_plain*100).toFixed(1)+'%</span>'
+        +'<span class="xc"><b>'+(r.p3_disc*100).toFixed(1)+'%</b></span>'
+        +'<span class="xc xdim">'+(d3>=0?'+':'')+(d3*100).toFixed(1)+'</span></div>';
+    });
+    out+='<details class="xpanel"><summary>連対率・複勝圏率（割引ハービル）　'
+      +fmtHM(p.ht_used)+'時点断面</summary>'
+      +'<div class="xbody">'+t
+      +'<div class="xnote">λ=0.83/0.69はJRA 2023-24の5,676レースから推定。'
+      +'素のハービルは本命の連対を過大評価する傾向の補正。'
+      +'λは確定オッズ由来の勝率で推定(2023-24・5,676レース)。本表示は'
+      +fmtHM(p.ht_used)+'時点の断面オッズに基づき、締切までに変動し得る。</div>'
+      +'</div></details>';
+  }
+  box.innerHTML=out;
+}
+
+function render(race, band, cond, seg){
+  const app=document.getElementById('app');
+  race=race||SAMPLE_RACE;
+  const unmeasured=race.model_status==='unmeasured';
+  if(!unmeasured&&seg&&race.segment&&(!race.seg_rho||race.seg_rho.rho==null)&&seg[race.segment]) race.seg_rho=seg[race.segment];
+  const sr=race.seg_rho, q=(sr&&sr.quality)||'unknown', ql=QLAB[q]||QLAB.unknown;
+  // n=0 from an unmeasured model means "never measured", NOT "thin sample":
+  // the thin-sample wording would assert something false about why rho is absent.
+  const thin=!unmeasured&&sr&&sr.n!=null&&sr.n<50;
+  document.getElementById('segBadge').innerHTML=
+    `<span>${esc(race.segment||'')}</span><span class="q-pill ${thin?'q-low':ql[1]}">${thin?'読み精度: 参考値':ql[0]}`
+    +(sr&&sr.rho!=null?` · rho ${sr.rho.toFixed(3)} · n=${esc(sr.n)}`:'')+`</span>`
+    +(thin?`<span style="font-size:10.5px;color:var(--ink-soft)">サンプル僅少のため rho は当てになりません</span>`:'');
+
+  const isSample = race.rkey === "サンプル";
+  // sampleBar carries BOTH top notices (sample data / unmeasured model) so that the
+  // template inventory in verify_all.py keeps a single whitelisted substitution.
+  const modelNote = unmeasured
+    ? '<div class="notice" style="margin:0 0 20px"><span class="bang">未測定</span>'
+      + '<span><b>表示中のスコアはモデル '+esc(race.model||'(不明)')+' によるものです。</b>'
+      + 'このモデルの市場相対性能は未測定です。ページ上部・下部の β=−0.110 は旧モデル '
+      + 'pf_model_g1.txt に対する測定値であり、このスコアには適用されません。'
+      + '当該条件の読み精度（rho）も本モデルについては未算出のため表示しません。</span></div>'
+    : '';
+  const sampleBar = modelNote + (isSample
+    ? '<div class="notice" style="margin:0 0 20px"><span class="bang">表示中</span>'
+      + '<span><b>サンプルデータです。</b>実レースの数値ではありません。'
+      + 'race_analysis.json を読み込むと実データに切り替わります。</span></div>'
+    : '');
+
+  // Panel A is rebuilt on every sort/filter change (see buildPanelA above). Everything
+  // there is assembled with string concatenation on purpose: it adds no template
+  // substitution to the escape inventory, and every value passes through esc().
+  CUR_RACE=race;
+  let A=buildPanelA(race);
+
+  const hasM=race.horses.some(h=>h.market_q!=null);
+  let B;
+  if(hasM){
+    const n=race.horses.length;
+    const rows=race.horses.slice().sort((a,b)=>a.pf_rank-b.pf_rank).map(h=>{
+      const mp=h.market_rank!=null?(1-(h.market_rank-1)/Math.max(n-1,1))*100:0;
+      const pp=(1-(h.pf_rank-1)/Math.max(n-1,1))*100;
+      const dv=h.divergence, dvs=esc(dv>0?`+${dv}`:`${dv}`);
+      return `<div class="mrow"><span class="mh">${esc(h.umaban)}</span>
+        <div class="track2"><div class="mk model" style="left:${pp}%"></div></div>
+        <div class="track2"><div class="mk market" style="left:${mp}%"></div></div>
+        <div class="dv" title="市場順位−モデル順位。中立指標。この差は収益には繋がりません（β=−0.110）。">${dvs}</div></div>`;}).join('')
+      // Pre-race odds are a moving snapshot; beta=-0.110 was measured against FINAL odds.
+      // Naming which series is on screen is the point of this note.
+      + (race.odds_kind==='prerace'
+         ? '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:12px;'
+           + 'padding-top:10px;border-top:1px solid var(--hi);line-height:1.6">'
+           + '表示中のオッズは<b>発走前</b>のスナップショットです。発走まで変動します。'
+           + 'β=−0.110 は<b>確定オッズ</b>に対する測定値であり、この系列を説明するものではありません。'
+           + '</div>'
+         : '');
+    B=`<div class="recon">
+      <div class="agree">一致度 <b>${race.agreement_spearman!=null?race.agreement_spearman.toFixed(2):'—'}</b>
+        <span style="color:var(--ink-soft)"> ／ モデル順位と市場人気の Spearman</span></div>
+      <div class="colhead"><span>馬</span><span>モデル→</span><span>市場→</span><span>乖離</span></div>
+      ${rows}</div>`;
+  } else {
+    B=`<div class="recon"><div class="empty" style="padding:24px 0">オッズ未読込。<br>
+      race_analysis.json をオッズ付きで生成すると市場照合が表示されます。</div></div>`;
+  }
+
+  let C='';
+  if(band){
+    const maxR=Math.max(...Object.values(band).map(b=>b.in3_rate));
+    const bars=Object.keys(band).sort().map(k=>{
+      const b=band[k],w=b.in3_rate/maxR*100;
+      const lbl=k==='0'?'最上位帯':k==='4'?'最下位帯':`第${(+k)+1}帯`;
+      return `<div class="band"><span class="lbl">${lbl}</span>
+        <div class="bt"><div class="bf" style="width:${w}%"></div></div>
+        <span>${(b.in3_rate*100).toFixed(1)}%</span></div>`;}).join('');
+    C=`<div class="bandwrap">
+      <div style="font-size:11px;color:var(--ink-soft);margin-bottom:10px;font-family:var(--mono)">
+        レース内スコア順位帯 × 複勝率（2000-2019・<b>無条件</b>）</div>${bars}
+      <div style="font-size:11px;color:var(--ink-soft);margin-top:10px;line-height:1.6">
+        ※ これは人気を揃えていない集計です。上位帯が高いのは、その馬がたいてい人気馬でもあるためで、
+        モデル固有の力とは切り分けられていません。<b>切り分けた結果はパネルEを見てください。</b>
+        また 2000-2017 はモデルの学習期間を含むため、この数字は上振れしています。
+        <b>この集計は pf_model_g1.txt に対するものです。</b>上部で別のモデルのスコアを表示している場合、
+        この数字はそのモデルの性質ではありません。</div></div>`;
+  }
+
+  app.innerHTML=`
+    ${sampleBar}
+    <div class="grid">
+      <div class="panel">
+        <div class="phead"><span class="pnum">A</span><span class="ptitle">出走馬リード</span>
+          <span class="pnote">乖離は中立指標です（右=モデル高評価／左=市場高評価）</span></div>
+        <div class="pbody" id="panelA">${A}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:22px">
+        <div class="panel">
+          <div class="phead"><span class="pnum">B</span><span class="ptitle">市場照合</span>
+            <span class="pnote">判断は利用者</span></div>
+          ${B}
+        </div>
+        <div class="panel">
+          <div class="phead"><span class="pnum">C</span><span class="ptitle">スコア帯別の実績（無条件・参考）</span>
+            <span class="pnote">補助表示／集計対象: pf_model_g1.txt</span></div>
+          ${C||'<div class="empty" style="padding:24px 0">score_band.json 未読込</div>'}
+        </div>
+      </div>
+    </div>
+    <div id="extras"></div>
+    ${panelE(cond)}
+    <div class="notice"><span class="bang">注記</span>
+      <span>「乖離」はモデルと市場で評価が分かれた馬を示す中立指標です。
+      <b>これは買い材料ではありません。</b>探索期 2020-2023・10,330レースでの測定により、
+      市場相対 β=−0.110（95%CI [−0.144,−0.080]）— モデルと市場が割れたとき平均して市場が正しいことが
+      確定しています。<b>同時に、これは逆張りの材料でもありません。</b>β が負であることは
+      「モデルを反転させれば market に勝てる」という意味ではなく、控除率（20-25%）の中では
+      反転させても成立しません。乖離は読みの参考としてのみ利用してください。
+      連系市場（馬連・三連単）はさらに効率的であることが測定済み
+      （単勝ベース構成に対し馬連Δ−0.018、三連単Δ−0.057）。
+      乖離はレースを読む材料であり、優位性の主張ではない。</span>
+    </div>
+    <div class="foot">${esc(race.footer||FOOTER)}<br>
+      設計: 事実提示のみ／買い目・EV・見送り判定なし。モデル評価（内部名 p_f）はオッズを一切
+      入力に使わない基礎モデルの出力。オッズは表示専用。<br>
+      数字の出自: セグメント別 rho = 学習期間内の時系列CV（2000-2017／評価用データ未消費）。
+      パネルE = 人気帯を揃えた複勝率、学習期間(2000-2017)と未学習期間(2018-2019)を分離、66,219レース。
+      パネルC = 2000-2019 無条件集計（学習期間を含むため上振れ）。
+      市場相対 β = 探索期 2020-2023・10,330レース・確定オッズ相対。
+      パネルC・E および β はいずれも pf_model_g1.txt に対する集計であり、他のモデルには適用されません。<br>
+      人気帯の「n番人気」は確定単勝オッズ昇順の順位（完走馬内・同オッズは馬番順で連番）。
+      公式発表の人気とは同着・取消の扱いが異なる場合があります。<br>
+      パネルE・Cの集計は最少頭数フィルタなし（極少頭数レースを含む。2000-2019 で1頭立て相当は
+      約12レース・影響は無視できる規模）。</div>`;
+  try{ renderExtras(race); }catch(e){}
+}
+
+document.getElementById('file').addEventListener('change',async e=>{
+  let race=null,band=null,cond=null,seg=null; const errs=[];
+  for(const f of e.target.files){
+    let j;
+    try{ j=JSON.parse(await f.text()); }
+    catch(err){ errs.push(`${f.name}: 読み込めません（${err.message}）。文字コードが UTF-8 か確認してください。`); continue; }
+    if(j.horses) race=j;
+    else if(j.oos||j.insample) cond=j;
+    else if(j['0']&&j['0'].in3_rate!=null) band=j;
+    else if(j.beta!==undefined) { /* G2_REPORT: stance already stated in header */ }
+    else seg=j;
+  }
+  const box=document.getElementById('loaderr');
+  if(errs.length){
+    box.style.display='block';
+    box.innerHTML='<b>読込エラー — 下の表示は読み込めなかったファイルではなく、埋め込み済みの既定データです。</b><br>'+errs.map(esc).join('<br>');
+  } else { box.style.display='none'; box.innerHTML=''; }
+  render(race, band||SCORE_BAND, cond||BAND_COND, seg||SEG_RHO);
+});
+
+const DAY_LABEL="2026-07-26";
+const DAY_RACES=[{"rkey": "202604020207", "segment": "turf1600", "seg_rho": {"rho": null, "n": 0, "quality": "unknown"}, "horses": [{"umaban": 3, "pf_rank": 1, "pf_score": 0.10784, "drivers": [{"feature": "prev1_finish_norm", "label": "前走着順", "direction": "+", "weight": 0.3846}, {"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.2922}, {"feature": "prev1_l3f_rank_norm", "label": "前走上がり順位", "direction": "+", "weight": 0.262}], "waku": 3, "facts": {"bamei": "アンパドゥ", "kisyu": "岩田望来", "chokyo": "木村哲也", "career": "6戦4勝 複5", "seg": "当該条件 6戦4勝", "prev1": "1着/12頭", "prev1_l3": "上がり1位/12頭", "rest": "中11週", "class": "G1", "futan": "56.0kg", "age": "5歳"}}, {"umaban": 8, "pf_rank": 2, "pf_score": 0.10073, "drivers": [{"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.3272}, {"feature": "jockey_win_sm", "label": "騎手成績", "direction": "+", "weight": 0.2672}, {"feature": "kisyu_id", "label": "騎手", "direction": "+", "weight": 0.2636}], "waku": 5, "facts": {"bamei": "ダノンセンチュリー", "kisyu": "戸崎圭太", "chokyo": "宮田敬介", "career": "7戦4勝 複5", "seg": "当該条件 6戦4勝", "prev1": "9着/18頭", "prev1_l3": "上がり7位/18頭", "rest": "中12週", "class": "G1", "futan": "56.0kg", "age": "4歳"}}, {"umaban": 1, "pf_rank": 3, "pf_score": 0.09576, "drivers": [{"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.377}, {"feature": "chokyo_id", "label": "厩舎", "direction": "+", "weight": 0.2918}, {"feature": "career_in3_sm", "label": "通算複勝率", "direction": "+", "weight": 0.2608}], "waku": 1, "facts": {"bamei": "ファーヴェント", "kisyu": "西塚洸二", "chokyo": "藤原英昭", "career": "16戦4勝 複8", "seg": "当該条件 14戦4勝", "prev1": "9着/18頭", "prev1_l3": "上がり8位/18頭", "rest": "中5週", "class": "G1", "futan": "57.0kg", "age": "5歳"}}, {"umaban": 9, "pf_rank": 4, "pf_score": 0.08813, "drivers": [{"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.3204}, {"feature": "prev1_finish_norm", "label": "前走着順", "direction": "+", "weight": 0.2608}, {"feature": "prev2_finish_norm", "label": "2走前着順", "direction": "-", "weight": -0.2187}], "waku": 6, "facts": {"bamei": "サンダーストラック", "kisyu": "丸山元気", "chokyo": "木村哲也", "career": "5戦2勝 複2", "seg": "当該条件 4戦2勝", "prev1": "7着/18頭", "prev1_l3": "上がり11位/18頭", "rest": "中11週", "class": "G1", "futan": "54.0kg", "age": "3歳"}}, {"umaban": 2, "pf_rank": 5, "pf_score": 0.05666, "drivers": [{"feature": "prev1_finish_norm", "label": "前走着順", "direction": "-", "weight": -0.4583}, {"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.2836}, {"feature": "career_in3_sm", "label": "通算複勝率", "direction": "+", "weight": 0.2573}], "waku": 2, "facts": {"bamei": "ジュタ", "kisyu": "吉田豊", "chokyo": "矢作芳人", "career": "9戦3勝 複4", "seg": "当該条件 3戦1勝", "prev1": "14着/15頭", "prev1_l3": "上がり15位/15頭", "rest": "中4週", "class": "G1", "futan": "56.0kg", "age": "4歳"}}, {"umaban": 13, "pf_rank": 6, "pf_score": 0.05431, "drivers": [{"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.2818}, {"feature": "career_in3_sm", "label": "通算複勝率", "direction": "+", "weight": 0.2528}, {"feature": "prev1_finish_norm", "label": "前走着順", "direction": "+", "weight": 0.2288}], "waku": 8, "facts": {"bamei": "ブエナオンダ", "kisyu": "田口貫太", "chokyo": "須貝尚介", "career": "21戦5勝 複10", "seg": "当該条件 15戦4勝", "prev1": "7着/18頭", "prev1_l3": "上がり4位/18頭", "rest": "中5週", "class": "G1", "futan": "58.0kg", "age": "5歳"}}, {"umaban": 7, "pf_rank": 7, "pf_score": 0.05361, "drivers": [{"feature": "prev1_finish_norm", "label": "前走着順", "direction": "+", "weight": 0.4282}, {"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.3192}, {"feature": "career_in3_sm", "label": "通算複勝率", "direction": "+", "weight": 0.2162}], "waku": 5, "facts": {"bamei": "エルトンバローズ", "kisyu": "コレット", "chokyo": "杉山晴紀", "career": "20戦5勝 複11", "seg": "当該条件 18戦5勝", "prev1": "1着/18頭", "prev1_l3": "上がり6位/18頭", "rest": "中5週", "class": "G1", "futan": "59.0kg", "age": "6歳"}}, {"umaban": 4, "pf_rank": 8, "pf_score": 0.05199, "drivers": [{"feature": "prev1_finish_norm", "label": "前走着順", "direction": "-", "weight": -0.4232}, {"feature": "kisyu_id", "label": "騎手", "direction": "+", "weight": 0.3099}, {"feature": "barei", "label": "馬齢", "direction": "-", "weight": -0.2953}], "waku": 3, "facts": {"bamei": "マテンロウスカイ", "kisyu": "横山典弘", "chokyo": "松永幹夫", "career": "26戦5勝 複14", "seg": "当該条件 16戦4勝", "prev1": "17着/18頭", "prev1_l3": "上がり17位/18頭", "rest": "中13週", "class": "G1", "futan": "58.0kg", "age": "7歳"}}, {"umaban": 12, "pf_rank": 9, "pf_score": 0.04672, "drivers": [{"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.31}, {"feature": "career_in3_sm", "label": "通算複勝率", "direction": "+", "weight": 0.2681}, {"feature": "prev1_finish_norm", "label": "前走着順", "direction": "-", "weight": -0.2521}], "waku": 7, "facts": {"bamei": "ランスオブカオス", "kisyu": "石川裕紀", "chokyo": "奥村豊", "career": "10戦3勝 複6", "seg": "当該条件 8戦2勝", "prev1": "11着/18頭", "prev1_l3": "上がり12位/18頭", "rest": "中13週", "class": "G1", "futan": "58.0kg", "age": "4歳"}}, {"umaban": 10, "pf_rank": 10, "pf_score": 0.04618, "drivers": [{"feature": "prev1_finish_norm", "label": "前走着順", "direction": "-", "weight": -0.3529}, {"feature": "career_in3_sm", "label": "通算複勝率", "direction": "+", "weight": 0.2649}, {"feature": "chokyo_id", "label": "厩舎", "direction": "+", "weight": 0.2207}], "waku": 6, "facts": {"bamei": "クランフォード", "kisyu": "菊沢一樹", "chokyo": "杉山晴紀", "career": "15戦4勝 複7", "seg": "当該条件 5戦0勝", "prev1": "11着/14頭", "prev1_l3": "上がり12位/14頭", "rest": "中11週", "class": "G1", "futan": "54.0kg", "age": "5歳"}}, {"umaban": 6, "pf_rank": 11, "pf_score": 0.04523, "drivers": [{"feature": "prev1_finish_norm", "label": "前走着順", "direction": "-", "weight": -0.4798}, {"feature": "prev2_finish_norm", "label": "2走前着順", "direction": "+", "weight": 0.3173}, {"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.2797}], "waku": 4, "facts": {"bamei": "シリウスコルト", "kisyu": "田辺裕信", "chokyo": "田中勝春", "career": "20戦4勝 複7", "seg": "当該条件 7戦0勝", "prev1": "14着/17頭", "prev1_l3": "上がり8位/17頭", "rest": "中7週", "class": "G1", "futan": "58.0kg", "age": "5歳"}}, {"umaban": 11, "pf_rank": 12, "pf_score": 0.03035, "drivers": [{"feature": "prev1_finish_norm", "label": "前走着順", "direction": "-", "weight": -0.4763}, {"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.2808}, {"feature": "career_in3_sm", "label": "通算複勝率", "direction": "+", "weight": 0.2735}], "waku": 7, "facts": {"bamei": "ドロップオブライト", "kisyu": "松若風馬", "chokyo": "福永祐一", "career": "32戦6勝 複14", "seg": "当該条件 5戦1勝", "prev1": "18着/18頭", "prev1_l3": "上がり2位/18頭", "rest": "中10週", "class": "G1", "futan": "56.5kg", "age": "7歳"}}, {"umaban": 14, "pf_rank": 13, "pf_score": 0.02871, "drivers": [{"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.2809}, {"feature": "career_starts", "label": "出走数", "direction": "-", "weight": -0.2418}, {"feature": "career_in3_sm", "label": "通算複勝率", "direction": "+", "weight": 0.1638}], "waku": 8, "facts": {"bamei": "メタルスピード", "kisyu": "斎藤新", "chokyo": "斎藤誠", "career": "38戦4勝 複16", "seg": "当該条件 31戦4勝", "prev1": "10着/18頭", "prev1_l3": "上がり13位/18頭", "rest": "中5週", "class": "G1", "futan": "55.0kg", "age": "6歳"}}, {"umaban": 5, "pf_rank": 14, "pf_score": 0.02574, "drivers": [{"feature": "prev1_finish_norm", "label": "前走着順", "direction": "-", "weight": -0.5433}, {"feature": "career_in3_sm", "label": "通算複勝率", "direction": "+", "weight": 0.3189}, {"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.2717}], "waku": 4, "facts": {"bamei": "レディマリオン", "kisyu": "今村聖奈", "chokyo": "長谷川浩", "career": "16戦4勝 複8", "seg": "当該条件 6戦1勝", "prev1": "14着/16頭", "prev1_l3": "上がり14位/16頭", "rest": "中14週", "class": "G1", "futan": "52.0kg", "age": "5歳"}}], "model": "pf_model_daily.txt", "model_status": "unmeasured", "footer": "本ツールは馬券の当否を予測しません。判断は利用者に委ねられます。使用モデル pf_model_daily.txt の市場相対性能は未測定です（β=-0.110 は pf_model_g1.txt に対する測定値であり、本モデルには適用されません）", "__label": "新潟7R 芝1600m"}, {"rkey": "202607020207", "segment": "dirt1200", "seg_rho": {"rho": null, "n": 0, "quality": "unknown"}, "horses": [{"umaban": 7, "pf_rank": 1, "pf_score": 0.20024, "drivers": [{"feature": "prev1_finish_norm", "label": "前走着順", "direction": "+", "weight": 0.4965}, {"feature": "kisyu_id", "label": "騎手", "direction": "+", "weight": 0.3515}, {"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.3204}], "waku": 5, "facts": {"bamei": "ダノンフィーゴ", "kisyu": "川田将雅", "chokyo": "友道康夫", "career": "10戦5勝 複8", "seg": "当該条件 9戦5勝", "prev1": "3着/16頭", "prev1_l3": "上がり2位/16頭", "rest": "中25週", "class": "G1", "futan": "58.0kg", "age": "4歳"}}, {"umaban": 8, "pf_rank": 2, "pf_score": 0.1642, "drivers": [{"feature": "kisyu_id", "label": "騎手", "direction": "+", "weight": 0.3589}, {"feature": "class_delta", "label": "クラス変動", "direction": "-", "weight": -0.3549}, {"feature": "prev1_finish_norm", "label": "前走着順", "direction": "+", "weight": 0.3339}], "waku": 5, "facts": {"bamei": "ベルジュロネット", "kisyu": "Ｍ．デム", "chokyo": "大久保龍", "career": "11戦5勝 複8", "seg": "当該条件 8戦5勝", "prev1": "1着/15頭", "prev1_l3": "上がり2位/15頭", "rest": "中5週", "class": "G1", "futan": "57.0kg", "age": "4歳"}}, {"umaban": 1, "pf_rank": 3, "pf_score": 0.11704, "drivers": [{"feature": "chokyo_id", "label": "厩舎", "direction": "+", "weight": 0.3595}, {"feature": "prev1_finish_norm", "label": "前走着順", "direction": "+", "weight": 0.3231}, {"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.3089}], "waku": 1, "facts": {"bamei": "ノーブルロジャー", "kisyu": "吉村誠之", "chokyo": "吉岡辰弥", "career": "19戦3勝 複7", "seg": "当該条件 9戦1勝", "prev1": "5着/15頭", "prev1_l3": "上がり1位/15頭", "rest": "中5週", "class": "G1", "futan": "57.0kg", "age": "5歳"}}, {"umaban": 11, "pf_rank": 4, "pf_score": 0.08933, "drivers": [{"feature": "class_delta", "label": "クラス変動", "direction": "-", "weight": -0.458}, {"feature": "father_id", "label": "父の適性", "direction": "+", "weight": 0.3691}, {"feature": "prev1_finish_norm", "label": "前走着順", "direction": "+", "weight": 0.3545}], "waku": 7, "facts": {"bamei": "メイショウハチロー", "kisyu": "団野大成", "chokyo": "福永祐一", "career": "12戦4勝 複8", "seg": "当該条件 6戦2勝", "prev1": "1着/15頭", "prev1_l3": "上がり4位/15頭", "rest": "中8週", "class": "G1", "futan": "57.0kg", "age": "4歳"}}, {"umaban": 13, "pf_rank": 5, "pf_score": 0.08865, "drivers": [{"feature": "class_delta", "label": "クラス変動", "direction": "-", "weight": -0.3584}, {"feature": "prev1_finish_norm", "label": "前走着順", "direction": "+", "weight": 0.3557}, {"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.3115}], "waku": 8, "facts": {"bamei": "ドラゴンテイラー", "kisyu": "坂井瑠星", "chokyo": "藤原英昭", "career": "5戦3勝 複3", "seg": "当該条件 3戦3勝", "prev1": "1着/16頭", "prev1_l3": "上がり4位/16頭", "rest": "中18週", "class": "G1", "futan": "57.0kg", "age": "4歳"}}, {"umaban": 9, "pf_rank": 6, "pf_score": 0.0846, "drivers": [{"feature": "prev1_finish_norm", "label": "前走着順", "direction": "+", "weight": 0.4867}, {"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.31}, {"feature": "class_delta", "label": "クラス変動", "direction": "-", "weight": -0.2506}], "waku": 6, "facts": {"bamei": "インユアパレス", "kisyu": "横山武史", "chokyo": "須貝尚介", "career": "20戦6勝 複13", "seg": "当該条件 17戦6勝", "prev1": "3着/16頭", "prev1_l3": "上がり4位/16頭", "rest": "中10週", "class": "G1", "futan": "57.0kg", "age": "5歳"}}, {"umaban": 5, "pf_rank": 7, "pf_score": 0.07218, "drivers": [{"feature": "prev1_finish_norm", "label": "前走着順", "direction": "+", "weight": 0.3731}, {"feature": "class_delta", "label": "クラス変動", "direction": "-", "weight": -0.3023}, {"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.2876}], "waku": 4, "facts": {"bamei": "ドンインザムード", "kisyu": "荻野極", "chokyo": "今野貞一", "career": "10戦5勝 複8", "seg": "当該条件 3戦1勝", "prev1": "1着/16頭", "prev1_l3": "上がり5位/16頭", "rest": "中9週", "class": "G1", "futan": "58.0kg", "age": "4歳"}}, {"umaban": 14, "pf_rank": 8, "pf_score": 0.06569, "drivers": [{"feature": "prev1_finish_norm", "label": "前走着順", "direction": "-", "weight": -0.48}, {"feature": "father_id", "label": "父の適性", "direction": "+", "weight": 0.2876}, {"feature": "career_in3_sm", "label": "通算複勝率", "direction": "+", "weight": 0.2448}], "waku": 8, "facts": {"bamei": "マテンロウコマンド", "kisyu": "松山弘平", "chokyo": "長谷川浩", "career": "9戦3勝 複5", "seg": "当該条件 6戦3勝", "prev1": "11着/16頭", "prev1_l3": "上がり15位/16頭", "rest": "中25週", "class": "G1", "futan": "58.0kg", "age": "4歳"}}, {"umaban": 12, "pf_rank": 9, "pf_score": 0.04534, "drivers": [{"feature": "prev1_finish_norm", "label": "前走着順", "direction": "+", "weight": 0.3372}, {"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.2781}, {"feature": "career_in3_sm", "label": "通算複勝率", "direction": "+", "weight": 0.267}], "waku": 7, "facts": {"bamei": "バトルクライ", "kisyu": "原優介", "chokyo": "高木登", "career": "29戦7勝 複13", "seg": "当該条件 16戦4勝", "prev1": "5着/15頭", "prev1_l3": "上がり2位/15頭", "rest": "中13週", "class": "G1", "futan": "57.0kg", "age": "7歳"}}, {"umaban": 3, "pf_rank": 10, "pf_score": 0.03687, "drivers": [{"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.3273}, {"feature": "father_id", "label": "父の適性", "direction": "+", "weight": 0.2859}, {"feature": "prev2_finish_norm", "label": "2走前着順", "direction": "-", "weight": -0.2328}], "waku": 3, "facts": {"bamei": "ハッピーマン", "kisyu": "幸英明", "chokyo": "寺島良", "career": "6戦2勝 複2", "seg": "当該条件 4戦2勝", "prev1": "7着/16頭", "prev1_l3": "上がり8位/16頭", "rest": "中10週", "class": "G1", "futan": "58.0kg", "age": "4歳"}}, {"umaban": 6, "pf_rank": 11, "pf_score": 0.02621, "drivers": [{"feature": "prev1_finish_norm", "label": "前走着順", "direction": "-", "weight": -0.3566}, {"feature": "prev2_finish_norm", "label": "2走前着順", "direction": "+", "weight": 0.3032}, {"feature": "career_in3_sm", "label": "通算複勝率", "direction": "+", "weight": 0.2904}], "waku": 4, "facts": {"bamei": "ケイアイドリー", "kisyu": "藤懸貴志", "chokyo": "前川恭子", "career": "21戦7勝 複14", "seg": "当該条件 14戦6勝", "prev1": "12着/16頭", "prev1_l3": "上がり15位/16頭", "rest": "中7週", "class": "G1", "futan": "57.0kg", "age": "9歳"}}, {"umaban": 10, "pf_rank": 12, "pf_score": 0.01906, "drivers": [{"feature": "damsire_id", "label": "母父の適性", "direction": "+", "weight": 0.2661}, {"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.2491}, {"feature": "career_starts", "label": "出走数", "direction": "-", "weight": -0.1712}], "waku": 6, "facts": {"bamei": "トリリオンボーイ", "kisyu": "中井裕二", "chokyo": "武井亮", "career": "27戦4勝 複10", "seg": "当該条件 23戦4勝", "prev1": "8着/16頭", "prev1_l3": "上がり5位/16頭", "rest": "中10週", "class": "G1", "futan": "57.0kg", "age": "4歳"}}, {"umaban": 4, "pf_rank": 13, "pf_score": 0.01523, "drivers": [{"feature": "prev1_finish_norm", "label": "前走着順", "direction": "-", "weight": -0.4591}, {"feature": "career_in3_sm", "label": "通算複勝率", "direction": "+", "weight": 0.2667}, {"feature": "class_level", "label": "クラス", "direction": "-", "weight": -0.2492}], "waku": 3, "facts": {"bamei": "モンドプリューム", "kisyu": "武藤雅", "chokyo": "水野貴広", "career": "29戦5勝 複13", "seg": "当該条件 15戦3勝", "prev1": "14着/15頭", "prev1_l3": "上がり14位/15頭", "rest": "中5週", "class": "G1", "futan": "57.0kg", "age": "6歳"}}, {"umaban": 2, "pf_rank": 14, "pf_score": 0.01069, "drivers": [{"feature": "prev1_finish_norm", "label": "前走着順", "direction": "-", "weight": -0.4412}, {"feature": "career_in3_sm", "label": "通算複勝率", "direction": "+", "weight": 0.2686}, {"feature": "kisyu_id", "label": "騎手", "direction": "-", "weight": -0.2378}], "waku": 2, "facts": {"bamei": "ジュンウィンダム", "kisyu": "国分優作", "chokyo": "浜田多実", "career": "22戦5勝 複10", "seg": "当該条件 20戦5勝", "prev1": "15着/16頭", "prev1_l3": "上がり5位/16頭", "rest": "中7週", "class": "G1", "futan": "55.0kg", "age": "6歳"}}], "model": "pf_model_daily.txt", "model_status": "unmeasured", "footer": "本ツールは馬券の当否を予測しません。判断は利用者に委ねられます。使用モデル pf_model_daily.txt の市場相対性能は未測定です（β=-0.110 は pf_model_g1.txt に対する測定値であり、本モデルには適用されません）", "__label": "中京7R ダ1400m"}];
+
+// ---- day mode: every race of one day, picked from a dropdown -------------------
+// DAY_RACES is a plain array of the same objects analyze_core writes to
+// race_analysis.json, so render() below is untouched and unaware of day mode.
+(function(){
+  const bar=document.createElement('div');
+  bar.className='daybar';
+  bar.innerHTML='<label>レース</label><select id="racePick"></select>'
+    +'<span class="cnt">'+DAY_LABEL+' ／ '+DAY_RACES.length+'レース</span>';
+  const anchor=document.querySelector('.bar');
+  anchor.parentNode.insertBefore(bar, anchor);
+  anchor.style.display='none';              // file picker is pointless here
+  const sel=document.getElementById('racePick');
+  DAY_RACES.forEach((r,i)=>{
+    const o=document.createElement('option');
+    o.value=i; o.textContent=r.__label||r.rkey; sel.appendChild(o);
+  });
+  function show(i){ render(DAY_RACES[i], SCORE_BAND, BAND_COND, SEG_RHO);
+                    window.scrollTo(0,0); }
+  sel.addEventListener('change',()=>show(+sel.value));
+  show(0);
+})();
+
+</script>
+</body>
+</html>
