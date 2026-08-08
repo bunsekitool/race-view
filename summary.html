@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang='ja'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>答え合わせ集計</title><style>
+<!DOCTYPE html><html lang='ja'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>成績表</title><style>
  body{margin:0;background:#FBFAF7;color:#1A1D1E;line-height:1.6;
       font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif}
  .wrap{max-width:640px;margin:0 auto;padding:24px 20px 60px}
@@ -17,6 +17,54 @@
        border:1px solid #E2DFD8;border-radius:9px;text-decoration:none;color:#0E7C7B;
        font-family:ui-monospace,Consolas,monospace;font-size:15px}
  a.day span{color:#5A6165;font-size:12px;float:right}
-</style></head><body><div class='wrap'><h1>答え合わせ集計</h1><div class='sub'><a href='index.html'>← 日付一覧</a></div><div class='note'><b>研究用の参考表示です。買い目の推奨ではありません。</b>事前検証の結論として、本モデルの単勝市場に対する優位は確認されていません（市場の方が正確です）。オッズ・確定成績等の JRA-VAN データは掲載していません。集計はレース単位 log loss(勝ち馬に与えた確率の-log)と1位指名的中率。</div><div class='note'>累積(オッズあり 23R 加重): ll_model=2.34381 / ll_market=2.08611 / ll_final=2.09353。数値が小さいほど良い。市場が最小＝市場の方が正確、が一貫した結果です。</div><table><tr><th>日付</th><th>R数</th><th>ll_model</th><th>ll_market</th><th>ll_final</th><th>top1_model</th><th>top1_market</th></tr>
-<tr><td>20260802</td><td>24</td><td>2.34381</td><td>2.08611</td><td>2.09353</td><td>0.2083</td><td>0.3478</td></tr>
-</table></div></body></html>
+</style><style>
+ .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+   gap:10px;margin:14px 0 22px}
+ .kcard{background:#fff;border:1px solid #E2DFD8;border-radius:12px;padding:14px 16px}
+ .klabel{font-size:12px;font-weight:600;opacity:.75}
+ .kbig{font-family:ui-monospace,Consolas,monospace;font-size:36px;font-weight:700;
+   line-height:1.2;margin:2px 0}
+ .ksub{font-family:ui-monospace,Consolas,monospace;font-size:13px;opacity:.7}
+ .knote{font-size:10.5px;opacity:.5;margin-top:4px;line-height:1.5}
+ .cbar{display:flex;align-items:center;gap:8px;margin:7px 0}
+ .cbar .lb{font-size:11px;width:58px;flex:0 0 58px}
+ .cbar .tr{flex:1;height:14px;background:rgba(128,128,140,.14);border-radius:4px;
+   overflow:hidden}
+ .cbar .fl{height:100%;border-radius:4px}
+ .cbar .vl{font-family:ui-monospace,Consolas,monospace;font-size:12px;font-weight:600;
+   width:52px;text-align:right}
+ .warnbox{border-left:3px solid oklch(0.62 0.145 45);background:#F2EFE8;
+   padding:9px 13px;font-size:12px;margin:12px 0}
+ .sec{font-size:15px;font-weight:700;margin:26px 0 4px}
+ .secsub{font-size:11.5px;opacity:.55;margin-bottom:10px}
+ .rrow{margin:9px 0}
+ .rlab{font-size:12px;margin-bottom:3px}
+ .rlab b{font-family:ui-monospace,Consolas,monospace}
+ .wchart{display:flex;align-items:flex-end;gap:8px;height:110px;margin:12px 0 4px}
+ .wcol{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+   min-width:0}
+ .wbar{width:70%;max-width:34px;background:oklch(0.44 0.022 265);
+   border-radius:4px 4px 0 0}
+ .wv{font-family:ui-monospace,Consolas,monospace;font-size:10px;opacity:.7}
+ .wl{font-size:9.5px;opacity:.5;white-space:nowrap}
+ details.det{margin:30px 0 50px;border:1px solid #E2DFD8;border-radius:9px;
+   background:#fff;padding:10px 14px}
+ details.det summary{cursor:pointer;font-size:13px;font-weight:600;opacity:.75}
+ details.det table{margin-top:10px}
+</style></head><body><div class='wrap'><h1>成績表</h1><div class='sub'><a href='index.html'>← 日付一覧</a>　AI本命の的中実績と、予想%の信用度</div><div class='warnbox'>まだ集計期間が短く、数字は大きくブレます(現在 35レース分)。参考程度に見てください。</div>
+<div class='cards'><div class='kcard'><div class='klabel'>AI本命の勝率</div><div class='kbig'>37.1%</div><div class='ksub'>35戦13勝</div><div class='knote'>AIが1位評価した馬が1着になった割合</div></div><div class='kcard'><div class='klabel'>本命が3着以内</div><div class='kbig'>77.1%</div><div class='ksub'>35戦27回</div><div class='knote'>AIが1位評価した馬が3着以内に入った割合</div></div><div class='kcard'><div class='klabel'>市場1番人気との比較</div><div class='cbar'><span class='lb'>AI本命</span><span class='tr'><span class='fl' style='width:100.0%;background:oklch(0.44 0.022 265)'></span></span><span class='vl'>37.1%</span></div><div class='cbar'><span class='lb'>1番人気</span><span class='tr'><span class='fl' style='width:100.0%;background:oklch(0.62 0.145 45)'></span></span><span class='vl'>37.1%</span></div><div class='knote'>どちらの「本命」がよく勝つか。1番人気側も自前の較正記録からの集計(オッズの生値は掲載していません)</div></div></div>
+<div class='sec'>予想はどれくらい信用できるか</div><div class='secsub'>予想と実績が近いほど、%を信用して読めます。</div>
+<div class='rrow'><div class='rlab'>AIが勝率 <b>0〜5%</b> と言った馬(252頭)は、実際に <b>3.6%</b> 勝ちました</div><div class='cbar'><span class='lb'>予想</span><span class='tr'><span class='fl' style='width:8.1%;background:rgba(128,128,140,.55)'></span></span><span class='vl'>2.0%</span></div><div class='cbar'><span class='lb'>実績</span><span class='tr'><span class='fl' style='width:14.5%;background:oklch(0.44 0.022 265)'></span></span><span class='vl'>3.6%</span></div></div>
+<div class='rrow'><div class='rlab'>AIが勝率 <b>5〜10%</b> と言った馬(80頭)は、実際に <b>1.2%</b> 勝ちました</div><div class='cbar'><span class='lb'>予想</span><span class='tr'><span class='fl' style='width:29.8%;background:rgba(128,128,140,.55)'></span></span><span class='vl'>7.4%</span></div><div class='cbar'><span class='lb'>実績</span><span class='tr'><span class='fl' style='width:4.8%;background:oklch(0.44 0.022 265)'></span></span><span class='vl'>1.2%</span></div></div>
+<div class='rrow'><div class='rlab'>AIが勝率 <b>10〜20%</b> と言った馬(66頭)は、実際に <b>16.7%</b> 勝ちました</div><div class='cbar'><span class='lb'>予想</span><span class='tr'><span class='fl' style='width:58.1%;background:rgba(128,128,140,.55)'></span></span><span class='vl'>14.4%</span></div><div class='cbar'><span class='lb'>実績</span><span class='tr'><span class='fl' style='width:67.3%;background:oklch(0.44 0.022 265)'></span></span><span class='vl'>16.7%</span></div></div>
+<div class='rrow'><div class='rlab'>AIが勝率 <b>20〜30%</b> と言った馬(40頭)は、実際に <b>22.5%</b> 勝ちました</div><div class='cbar'><span class='lb'>予想</span><span class='tr'><span class='fl' style='width:100.0%;background:rgba(128,128,140,.55)'></span></span><span class='vl'>24.8%</span></div><div class='cbar'><span class='lb'>実績</span><span class='tr'><span class='fl' style='width:90.7%;background:oklch(0.44 0.022 265)'></span></span><span class='vl'>22.5%</span></div></div>
+<div class='sec'>週ごとのAI本命勝率(直近8週)</div><div class='secsub'>週単位では運の影響が大きく、見るべきは累積です。</div>
+<div class='wchart'><div class='wcol'><span class='wv'>37%</span><span class='wbar' style='height:100%'></span><span class='wl'>8/2週</span><span class='wv'>13/35</span></div></div>
+<details class='det'><summary>詳細(研究用)</summary>
+<table><tr><th>日付</th><th>R数</th><th>ll_model</th><th>ll_market</th><th>ll_final</th><th>top1_model</th><th>top1_market</th></tr>
+<tr><td>20260802</td><td>36</td><td>2.27589</td><td>2.08318</td><td>2.08329</td><td>0.1667</td><td>0.3714</td></tr>
+</table>
+<div class='note'>累積(オッズあり 35R 加重): ll_model=2.27589 / ll_market=2.08318 / ll_final=2.08329。小さいほど良い。市場が最小＝市場の方が正確、が一貫した結果です。</div>
+<div class='note'>累積ECE(較正誤差) = 0.03875。予測確率と実勝率の平均的なズレ。</div>
+<div class='note'>研究用の参考表示です。買い目の推奨ではありません。事前検証の結論として、本モデルの単勝市場に対する優位は確認されていません（市場の方が正確です）。オッズ・確定成績等の JRA-VAN データは掲載していません。 このページは日次バッチと週次の答え合わせ(毎週月曜)で自動更新されます。</div>
+</details></div></body></html>
