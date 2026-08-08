@@ -1,0 +1,22 @@
+<!DOCTYPE html><html lang='ja'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>答え合わせ集計</title><style>
+ body{margin:0;background:#FBFAF7;color:#1A1D1E;line-height:1.6;
+      font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif}
+ .wrap{max-width:640px;margin:0 auto;padding:24px 20px 60px}
+ h1{font-size:20px;margin:0 0 4px} h2{font-size:15px;margin:26px 0 6px}
+ .sub{font-size:13px;color:#5A6165;margin-bottom:14px}
+ .note{border-left:3px solid #1A1D1E;background:#F2EFE8;padding:10px 14px;
+       font-size:12.5px;margin-bottom:20px}
+ table{width:100%;border-collapse:collapse;font-family:ui-monospace,Consolas,monospace;
+       font-size:13px;background:#fff;border:1px solid #E2DFD8;border-radius:9px}
+ th{color:#5A6165;font-size:11px;text-align:right;padding:6px 8px;border-bottom:1px solid #E2DFD8}
+ th:nth-child(1),th:nth-child(2){text-align:left}
+ td{padding:5px 8px;text-align:right;border-bottom:1px solid #F2EFE8}
+ td:nth-child(1),td:nth-child(2){text-align:left}
+ tr:last-child td{border-bottom:none}
+ a.day{display:block;padding:13px 16px;margin-bottom:8px;background:#fff;
+       border:1px solid #E2DFD8;border-radius:9px;text-decoration:none;color:#0E7C7B;
+       font-family:ui-monospace,Consolas,monospace;font-size:15px}
+ a.day span{color:#5A6165;font-size:12px;float:right}
+</style></head><body><div class='wrap'><h1>答え合わせ集計</h1><div class='sub'><a href='index.html'>← 日付一覧</a></div><div class='note'><b>研究用の参考表示です。買い目の推奨ではありません。</b>事前検証の結論として、本モデルの単勝市場に対する優位は確認されていません（市場の方が正確です）。オッズ・確定成績等の JRA-VAN データは掲載していません。集計はレース単位 log loss(勝ち馬に与えた確率の-log)と1位指名的中率。</div><div class='note'>累積(オッズあり 23R 加重): ll_model=2.34381 / ll_market=2.08611 / ll_final=2.09353。数値が小さいほど良い。市場が最小＝市場の方が正確、が一貫した結果です。</div><table><tr><th>日付</th><th>R数</th><th>ll_model</th><th>ll_market</th><th>ll_final</th><th>top1_model</th><th>top1_market</th></tr>
+<tr><td>20260802</td><td>24</td><td>2.34381</td><td>2.08611</td><td>2.09353</td><td>0.2083</td><td>0.3478</td></tr>
+</table></div></body></html>
