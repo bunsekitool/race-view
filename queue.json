@@ -1,0 +1,13 @@
+{
+ "_how_to": "requests に {\"id\": \"任意の一意な文字列\", \"action\": \"下記のどれか\"} を足すと、次に PC が起きたときに実行されます。",
+ "_actions": [
+  "refresh",
+  "answer_check",
+  "predict_today",
+  "daily",
+  "backup",
+  "retrain"
+ ],
+ "requests": [],
+ "history": []
+}
