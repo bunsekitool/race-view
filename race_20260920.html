@@ -389,6 +389,13 @@ function key(rc,no){return rc.v+rc.r+'-'+no}
 function nSaved(){return Object.keys(saved).length}
 function scl(v){return v==null?0:Math.max(0,Math.min(v/40*100,100))}
 function rankOf(rc,pm){var k=1;rc.h.forEach(function(x){if(x[2]>pm)k++});return k}
+// 並べ替えで選んだ基準（AI予測 / 市場込みAI予測）での値と順位。表彰台・順位メダルは
+// この基準に従う（差の大きい順のときは AI予測 のまま）。値が無い馬（オッズ未発売）は順位なし。
+function valOf(h,b){return b==='final'?h[3]:h[2]}
+function rankBy(rc,h,b){var v=valOf(h,b);if(v==null)return null;
+  var k=1;rc.h.forEach(function(x){var w=valOf(x,b);if(w!=null&&w>v)k++});return k}
+function basisOf(){return st.sort==='final'?'final':'model'}
+function basisJa(b){return b==='final'?'市場込みAI予測':'AI予測'}
 function num(cls,v,unit){var s=el('span',cls,f1(v));
   if(v!=null&&unit)s.appendChild(el('small',null,unit));return s}
 function tile(cls,wk,no){var t=el('span',cls+' wk wk'+(wk||0),String(no));
@@ -427,24 +434,25 @@ function star(rc,h){
 function updCount(){var c=document.getElementById('mk-n');if(c)c.textContent=nSaved()||''}
 
 // ---- 表彰台（AI予測 1〜3位。左から 2位・1位・3位） ----
-function podium(rc){
-  var top=rc.h.slice(0,Math.min(3,rc.h.length));
+function podium(rc,b,top){
   var seq=top.length===3?[[top[1],2],[top[0],1],[top[2],3]]
          :top.length===2?[[top[1],2],[top[0],1]]:[[top[0],1]];
   var wrap=el('div','podium');
   seq.forEach(function(s){
-    var h=s[0],p=s[1],rk=rankOf(rc,h[2]),m=MEDAL[rk]||MEDAL[p];
+    var h=s[0],p=s[1],rk=rankBy(rc,h,b)||p,m=MEDAL[rk]||MEDAL[p];
     var col=el('div','pc p'+p);
     var ic=el('div','ic');ic.appendChild(img(p===1?104:88,h));
     ic.appendChild(tile('ubt',h[5],h[0]));col.appendChild(ic);
     col.appendChild(el('div','nm',h[1]));
     var ped=el('div','ped');ped.style.background=m[0];ped.style.color=m[1];
     var rn=el('span','rn',String(rk));rn.appendChild(el('small',null,'位'));
-    rn.title='AI予測の順位';ped.appendChild(rn);
-    var l1=el('div','lv');l1.appendChild(el('span','l','AI予測'));l1.appendChild(num('v',h[2],'%'));
-    ped.appendChild(l1);ped.appendChild(bar('bar',h[2]));
-    var l2=el('div','lv m');l2.appendChild(el('span','l','市場込み'));l2.appendChild(num('v',h[3],'%'));
-    ped.appendChild(l2);ped.appendChild(bar('bar m',h[3]));
+    rn.title=basisJa(b)+'の順位';ped.appendChild(rn);
+    var l1=el('div','lv'+(b==='final'?' m':''));l1.appendChild(el('span','l','AI予測'));
+    l1.appendChild(num('v',h[2],'%'));ped.appendChild(l1);
+    ped.appendChild(bar('bar'+(b==='final'?' m':''),h[2]));
+    var l2=el('div','lv'+(b==='final'?'':' m'));l2.appendChild(el('span','l','市場込み'));
+    l2.appendChild(num('v',h[3],'%'));ped.appendChild(l2);
+    ped.appendChild(bar('bar'+(b==='final'?'':' m'),h[3]));
     ped.appendChild(edgeChip(h[4]));
     var tg=tags(h,'tg','tgs');if(tg)ped.appendChild(tg);
     ped.appendChild(star(rc,h));
@@ -455,13 +463,14 @@ function podium(rc){
 // ---- 馬行カード ----
 function hrow(rc,h,opts){
   var no=h[0],nm=h[1],pm=h[2],pf=h[3],ed=h[4],wk=h[5];
-  var rk=rankOf(rc,pm);
+  var b=(opts&&opts.basis)||'model';
+  var rk=rankBy(rc,h,b);
   var c=el('div','hr'+(pm<2?' dim':''));
   var t=el('div','t');
   var md=el('span','md');
-  if(rk<=5){md.style.background=MEDAL[rk][0];md.style.color=MEDAL[rk][1];
-    md.appendChild(el('small',null,'AI'));md.appendChild(document.createTextNode(rk));
-    md.title='AI予測の順位 '+rk+'位'}
+  if(rk&&rk<=5){md.style.background=MEDAL[rk][0];md.style.color=MEDAL[rk][1];
+    md.appendChild(el('small',null,b==='final'?'市':'AI'));md.appendChild(document.createTextNode(rk));
+    md.title=basisJa(b)+'の順位 '+rk+'位'}
   else md.classList.add('m0');
   t.appendChild(md);
   t.appendChild(tile('wt',wk,no));
@@ -699,28 +708,33 @@ function renderRace(main){
     pp.appendChild(ul);main.appendChild(pp)}
 
   var pod=el('section','pod');
-  var hd=el('div','ph');hd.appendChild(el('i'));hd.appendChild(el('span','h','AI予測 表彰台'));
+  var bs2=basisOf();
+  var ordered=rc.h.slice();
+  if(bs2==='final')ordered.sort(function(a,b){
+    var x=a[3],y=b[3];return (y==null?-1:y)-(x==null?-1:x)||b[2]-a[2]});
+  var hd=el('div','ph');hd.appendChild(el('i'));
+  hd.appendChild(el('span','h',basisJa(bs2)+' 表彰台'));
   hd.appendChild(el('small',null,'全'+rc.h.length+'頭'));pod.appendChild(hd);
-  pod.appendChild(podium(rc));pod.appendChild(el('div','pbase'));
+  pod.appendChild(podium(rc,bs2,ordered.slice(0,Math.min(3,ordered.length))));
+  pod.appendChild(el('div','pbase'));
   var so=el('div','sorts');
   [['model','AI予測順'],['final','市場込み順'],['edge','差の大きい順']].forEach(function(s){
     var b=el('button',null,s[1]);b.setAttribute('aria-pressed',st.sort===s[0]);
     b.onclick=function(){st.sort=s[0];render()};so.appendChild(b)});
   pod.appendChild(so);
   var shown,rest=0;
-  if(st.sort==='model'){
-    var after=rc.h.slice(Math.min(3,rc.h.length));
-    shown=st.more?after:after.slice(0,2);rest=after.length-2;
-  }else{
+  if(st.sort==='edge'){
     shown=rc.h.slice();
-    if(st.sort==='final')shown.sort(function(a,b){return (b[3]||0)-(a[3]||0)});
-    else shown.sort(function(a,b){return Math.abs(b[4]||0)-Math.abs(a[4]||0)});
+    shown.sort(function(a,b){return Math.abs(b[4]||0)-Math.abs(a[4]||0)});
+  }else{
+    var after=ordered.slice(Math.min(3,ordered.length));
+    shown=st.more?after:after.slice(0,2);rest=after.length-2;
   }
   if(shown.length){var hl=el('div','hlist');
-    shown.forEach(function(h){hl.appendChild(hrow(rc,h))});pod.appendChild(hl)}
+    shown.forEach(function(h){hl.appendChild(hrow(rc,h,{basis:bs2}))});pod.appendChild(hl)}
   pod.appendChild(legend());
   var acts=el('div','acts');
-  if(st.sort==='model'&&rest>0){
+  if(st.sort!=='edge'&&rest>0){
     var mo=el('button','btn3d',st.more?'たたむ':'のこり'+rest+'頭');
     mo.setAttribute('aria-expanded',st.more?'true':'false');
     mo.onclick=function(){st.more=!st.more;render()};acts.appendChild(mo)}
