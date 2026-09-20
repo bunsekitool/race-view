@@ -20,7 +20,7 @@ a{color:inherit}
 .zm{font-family:'Zen Maru Gothic','Noto Sans JP',sans-serif;font-weight:900}
 .num{font-family:Outfit,system-ui,sans-serif;font-weight:900;font-variant-numeric:tabular-nums}
 .app{max-width:400px;width:100%;margin:0 auto;background:var(--card);min-height:100vh;
-  padding-bottom:110px;overflow:hidden}
+  padding-bottom:110px}
 @media(min-width:460px){
   .app{margin:18px auto 0;border:3px solid var(--line);border-radius:26px;
     box-shadow:0 10px 26px rgba(0,0,0,.4);min-height:0}
@@ -88,6 +88,20 @@ a{color:inherit}
 .band .nav.prev{left:10px}.band .nav.next{right:10px}
 .band .nav:disabled{opacity:.35;cursor:default}
 .band .nav:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 #8a8272}
+/* 追従する切替バー（基準＋馬場）。2026-09-20 追加 */
+.ctl{position:sticky;top:0;z-index:25;display:flex;align-items:center;gap:5px 6px;flex-wrap:wrap;
+  padding:7px 10px;background:var(--card);border-bottom:3px solid var(--line);
+  box-shadow:0 5px 12px rgba(0,0,0,.3)}
+.ctl .row{display:flex;align-items:center;gap:5px;flex:1 1 100%;min-width:0}
+.ctl .lb{flex:none;font:900 10px/1.2 'Zen Maru Gothic',sans-serif;color:var(--muted);padding:0 1px}
+.ctl button{flex:1 1 auto;min-height:44px;padding:0 8px;border-radius:12px;background:#fffdf6;
+  border:2.5px solid var(--line);font:900 11.5px/1.15 'Zen Maru Gothic',sans-serif;color:#20243a;
+  box-shadow:0 3px 0 rgba(11,16,36,.4);white-space:nowrap}
+@media(max-width:340px){.ctl button{font-size:10.5px;padding:0 5px}}
+.ctl button[aria-pressed=true]{background:linear-gradient(180deg,#8b6df5,#6a45e0);color:#fff}
+.ctl button.bb[aria-pressed=true]{background:linear-gradient(180deg,#6ee7b0,#12b981);color:#053a28}
+.ctl .sep{flex:none;width:2px;height:24px;border-radius:2px;background:rgba(128,128,140,.4);margin:0 3px}
+.ctlnote{margin:8px 14px 0;font:700 10.5px/1.6 'Zen Maru Gothic',sans-serif;color:var(--muted)}
 /* ---- 注記・おしらせ ---- */
 .note{margin:9px 14px 0;font:500 10px/1.65 'Noto Sans JP',sans-serif;color:var(--muted)}
 .notice{margin:16px 12px 0;padding:11px 12px;border-radius:14px;background:var(--notice);
@@ -300,6 +314,68 @@ a{color:inherit}
 .wk5{background:#ffd83d;color:#1b1b2f}.wk6{background:#2aa050;color:#ffffff}
 .wk7{background:#f08a1c;color:#ffffff}.wk8{background:#f3a0b7;color:#1b1b2f}
 /* ---- データ分析パネル ---- */
+details.bb{margin:13px 12px 0;padding:0 12px;border-radius:18px;
+  background:linear-gradient(180deg,#fffdf6,#f2ebdd);border:3px solid var(--line);
+  box-shadow:0 5px 0 rgba(11,16,36,.5);color:#20243a}
+details.bb summary{list-style:none;cursor:pointer;min-height:52px;display:flex;flex-direction:column;
+  justify-content:center;padding:8px 0 8px 22px;position:relative;
+  font:900 14px/1.25 'Zen Maru Gothic',sans-serif}
+details.bb summary::-webkit-details-marker{display:none}
+details.bb summary::before{content:'▶';position:absolute;left:0;top:50%;margin-top:-8px;
+  font-size:12px;line-height:16px;color:#b97a08;transition:transform .15s}
+details.bb[open] summary::before{transform:rotate(90deg)}
+details.bb summary::after{content:'良・稍重・重・不良に置き換えた場合の勝率';
+  font:700 10px/1.4 'Zen Maru Gothic',sans-serif;color:#6b5f4d}
+details.bb[open]{padding-bottom:12px}
+.bbw{overflow-x:auto}
+.bbt{border-collapse:collapse;font:800 12px/1.4 'Zen Maru Gothic',sans-serif;min-width:100%}
+.bbt th{font:900 10.5px/1.3 'Zen Maru Gothic',sans-serif;color:#5e5443;padding:4px 5px 6px;
+  border-bottom:2px solid rgba(11,16,36,.18);white-space:nowrap}
+.bbt th.l{text-align:left;padding-left:0}
+.bbt td{padding:5px 5px;border-bottom:2px dashed rgba(11,16,36,.12);text-align:right;
+  font:900 12px/1 Outfit,sans-serif;white-space:nowrap}
+.bbt td.l{text-align:left;padding-left:0;font:800 11.5px/1.3 'Zen Maru Gothic',sans-serif;
+  max-width:9.5em;overflow-wrap:anywhere}
+.bbt td{font-size:11.5px}
+.bbt tr:last-child td{border-bottom:none}
+.bbt .wk{width:24px;height:24px;border-radius:7px;border:2px solid var(--line);
+  display:grid;place-items:center;font:900 12px/1 Outfit,sans-serif}
+.bbt td.best{background:#d9f2e4;border-radius:6px;color:#0a5f42}
+.bbt .dl{font:700 10px/1 Outfit,sans-serif;color:#6b5f4d;margin-left:3px}
+.bb-note{font:500 10px/1.65 'Noto Sans JP',sans-serif;color:#5e5443;margin-top:10px}
+@media(max-width:380px){.bbt td.l{max-width:6.6em;font-size:10.5px}
+  .bbt td,.bbt th{font-size:10.5px;padding:4px 3px}
+  .bbt .wk{width:21px;height:21px;font-size:11px}}
+.bb-sum{font:800 11.5px/1.7 'Zen Maru Gothic',sans-serif;color:#2c2a24;margin:6px 0 2px}
+details.spd{margin:13px 12px 0;padding:0 12px;border-radius:18px;
+  background:linear-gradient(180deg,#fffdf6,#f2ebdd);border:3px solid var(--line);
+  box-shadow:0 5px 0 rgba(11,16,36,.5);color:#20243a}
+details.spd summary{list-style:none;cursor:pointer;min-height:52px;display:flex;flex-direction:column;
+  justify-content:center;padding:8px 0 8px 22px;position:relative;
+  font:900 14px/1.25 'Zen Maru Gothic',sans-serif}
+details.spd summary::-webkit-details-marker{display:none}
+details.spd summary::before{content:'▶';position:absolute;left:0;top:50%;margin-top:-8px;
+  font-size:12px;line-height:16px;color:#b97a08;transition:transform .15s}
+details.spd[open] summary::before{transform:rotate(90deg)}
+details.spd summary::after{content:'自前算出の指数だけで並べた順位（AI予測とは別）';
+  font:700 10px/1.4 'Zen Maru Gothic',sans-serif;color:#6b5f4d}
+details.spd[open]{padding-bottom:12px}
+.spdt{width:100%;border-collapse:collapse;font:800 12px/1.4 'Zen Maru Gothic',sans-serif}
+.spdt th{font:900 10px/1.3 'Zen Maru Gothic',sans-serif;color:#5e5443;text-align:left;
+  padding:4px 4px 6px 0;border-bottom:2px solid rgba(11,16,36,.18)}
+.spdt th.n,.spdt td.n{text-align:right;font-family:Outfit,sans-serif}
+.spdt td{padding:5px 4px 5px 0;border-bottom:2px dashed rgba(11,16,36,.12);vertical-align:middle}
+.spdt tr:last-child td{border-bottom:none}
+.spdt .rk2{width:2.2em;font:900 13px/1 Outfit,sans-serif;color:#4b3cc4}
+.spdt .wk{flex:0 0 24px;width:24px;height:24px;border-radius:7px;border:2px solid var(--line);
+  display:grid;place-items:center;font:900 12px/1 Outfit,sans-serif}
+.spdt .nm2{max-width:8.5em;overflow-wrap:anywhere}
+.spdb{position:relative;height:12px;border-radius:99px;background:#ddd4c4;border:2px solid var(--line);
+  overflow:hidden;min-width:56px}
+.spdb i{display:block;height:100%;background:linear-gradient(180deg,#6ee7b0,#12b981)}
+.spdt td.v{font:900 12px/1 Outfit,sans-serif;white-space:nowrap}
+.spdt .up{color:#0a7a55}.spdt .dn{color:#b3261e}
+.spd-note{font:500 10px/1.65 'Noto Sans JP',sans-serif;color:#5e5443;margin-top:10px}
 details.da{margin:13px 12px 0;padding:0 12px;border-radius:18px;
   background:linear-gradient(180deg,#fffdf6,#f2ebdd);border:3px solid var(--line);
   box-shadow:0 5px 0 rgba(11,16,36,.5);color:#20243a}
@@ -317,6 +393,11 @@ details.da[open]{padding-bottom:12px}
   font:900 12.5px/1.3 'Zen Maru Gothic',sans-serif}
 .da-h::before{content:'';width:5px;height:14px;border-radius:99px;background:#ffd23f;align-self:center}
 .da-h small{font:500 10px/1.4 'Noto Sans JP',sans-serif;color:#5e5443}
+details.da tr[data-baba]{display:none}
+:root[data-baba='1'] details.da tr[data-baba='1'],
+:root[data-baba='2'] details.da tr[data-baba='2'],
+:root[data-baba='3'] details.da tr[data-baba='3'],
+:root[data-baba='4'] details.da tr[data-baba='4']{display:table-row}
 .da-t{width:100%;border-collapse:collapse;font-size:12px}
 .da-t th{text-align:left;font:900 11px/1.35 'Zen Maru Gothic',sans-serif;width:8.5em;padding:7px 8px 7px 0;
   vertical-align:top;border-top:2px dashed rgba(11,16,36,.14)}
@@ -449,7 +530,7 @@ details.da[open]{padding-bottom:12px}
 .sp .card .hist{font:700 10.5px/1.5 ui-monospace,Consolas,monospace;color:#6b5f4d;margin-top:5px;
   white-space:nowrap;overflow-x:auto}
 .sp .ok{color:#0a7a55}.sp .bad{color:#b3261e}
-</style></head><body><div class='app'><header class='top'><div class='tt'><span class='ttl'>モデル確率</span><span class='date' style='font-family:"Zen Maru Gothic",sans-serif'>運用ステータス</span><div class='meta'>最終更新 2026-09-20 13:35</div></div><button id='themeBtn' class='tbtn' aria-label='テーマ切替'>◐</button></header><main class='sp'><div class='card'><div class='ic ok'>✓</div><div class='bd'><div class='ti'>日次バッチ（予想の生成・公開）</div><div class='mt'>正常終了  09/20 13:29・5分前</div><div class='hist'>09/20 13:29 OK 09/20 13:03 OK 09/20 09:56 OK 09/19 08:42 OK 09/13 10:41 OK</div></div></div>
+</style></head><body><div class='app'><header class='top'><div class='tt'><span class='ttl'>モデル確率</span><span class='date' style='font-family:"Zen Maru Gothic",sans-serif'>運用ステータス</span><div class='meta'>最終更新 2026-09-20 17:05</div></div><button id='themeBtn' class='tbtn' aria-label='テーマ切替'>◐</button></header><main class='sp'><div class='card'><div class='ic ok'>✓</div><div class='bd'><div class='ti'>日次バッチ（予想の生成・公開）</div><div class='mt'>正常終了  09/20 16:40・24分前</div><div class='hist'>09/20 16:40 OK 09/20 13:29 OK 09/20 13:03 OK 09/20 09:56 OK 09/19 08:42 OK</div></div></div>
 <div class='card'><div class='ic bad'>!</div><div class='bd'><div class='ti'>答え合わせ（毎週月曜）</div><div class='mt'>最終 2026-09-12 10:39  累積 269R・本命92勝</div><div class='warn'>09/12・09/13・09/19・09/20 の答え合わせが未処理。EveryDB3 で取込をすると次回反映されます。</div></div></div>
 <div class='card'><div class='ic ok'>✓</div><div class='bd'><div class='ti'>バックアップ（毎週月曜・実体は月1回）</div><div class='mt'>最終 09/07 08:40・13日前</div></div></div>
 <div class='card'><div class='ic ok'>✓</div><div class='bd'><div class='ti'>月次再学習</div><div class='mt'>最終 08/31 10:32・20日前  当月分は実施済み</div><div class='hist'>現行モデル 学習〜2026-05-17 / 較正〜2026-08-22 / w=0.05</div></div></div>
