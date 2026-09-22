@@ -20,7 +20,8 @@ a{color:inherit}
 .zm{font-family:'Zen Maru Gothic','Noto Sans JP',sans-serif;font-weight:900}
 .num{font-family:Outfit,system-ui,sans-serif;font-weight:900;font-variant-numeric:tabular-nums}
 .app{max-width:400px;width:100%;margin:0 auto;background:var(--card);min-height:100vh;
-  padding-bottom:110px}
+  /* 下の固定ナビ(約79px)＋選択ボタンの浮き(6px)＋余白。ナビはホームバー分だけ伸びるので同じだけ足す(2026-09-22) */
+  padding-bottom:calc(124px + env(safe-area-inset-bottom, 0px))}
 @media(min-width:460px){
   .app{margin:18px auto 0;border:3px solid var(--line);border-radius:26px;
     box-shadow:0 10px 26px rgba(0,0,0,.4);min-height:0}
