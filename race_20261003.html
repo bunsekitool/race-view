@@ -559,8 +559,20 @@ function podium(rc,b,top){
     ped.appendChild(star(rc,h));
     col.appendChild(ped);wrap.appendChild(col);
   });
+  // 台の高さを必ず 1位＞2位＞3位 にする（2026-10-03）。CSS の min-height だけだと、台の中身
+  // （特徴タグ等）が多い馬の台が伸びて順位と逆転する。中身の高さを測ってから、1位を基準に
+  // 2位は20px・3位は30px低くそろえる（元のデザインの 196/176/166 と同じ段差）。
+  wrap._layout=function(){
+    var STEP={1:0,2:20,3:30},base=196,pcs=[].slice.call(wrap.querySelectorAll('.pc'));
+    pcs.forEach(function(c){var e=c.querySelector('.ped');e.style.height='auto';e.style.minHeight='0'});
+    pcs.forEach(function(c){var p=+(c.className.match(/p(\d)/)||[0,1])[1];
+      base=Math.max(base,c.querySelector('.ped').offsetHeight+STEP[p])});
+    pcs.forEach(function(c){var p=+(c.className.match(/p(\d)/)||[0,1])[1];
+      c.querySelector('.ped').style.height=(base-STEP[p])+'px'});
+  };
   return wrap;
 }
+function layoutPodium(){var w=document.querySelector('.podium');if(w&&w._layout)w._layout()}
 // ---- 馬行カード ----
 function hrow(rc,h,opts){
   var no=h[0],nm=h[1],pm=h[2],pf=h[3],ed=h[4],wk=h[5];
@@ -1008,7 +1020,8 @@ function tkMap(rc){
 }
 var rsT=null;
 window.addEventListener('resize',function(){clearTimeout(rsT);rsT=setTimeout(function(){
-  var m=document.getElementById('tkmap');if(m&&m._layout)m._layout(true)},120)});
+  var m=document.getElementById('tkmap');if(m&&m._layout)m._layout(true);layoutPodium()},120)});
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(layoutPodium);
 
 function render(){
   writeHash();
@@ -1124,6 +1137,7 @@ function renderRace(main){
       if(m)m.scrollIntoView({behavior:'smooth',block:'start'})};acts.appendChild(gt)}
   if(acts.childNodes.length)pod.appendChild(acts);
   main.appendChild(pod);
+  layoutPodium();
   if(DATA.tagnote&&rc.h.some(function(h){return h.length>6&&h[6]&&h[6].length}))
     main.appendChild(el('div','note',DATA.tagnote));
   try{var tm=tkMap(rc);if(tm){main.appendChild(tm);tm._layout(false)}}catch(e){}
