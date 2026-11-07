@@ -1107,11 +1107,11 @@ function simPanel(rc){
     var run=simRun(hs,rc.pace),T=Math.min(22,Math.max(12,10+D/300))*1000,t0=null,said={},
         tEnd=1+(run.order[run.order.length-1].mg*SIM_VIS+40)/D;
     bGo.textContent='走行中…';
-    var red=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // 「視差効果を減らす」設定でも走らせる（ボタンを押して見に行く動きのため。2026-11-07 一瞬でゴールになる不具合の修正）
     function name(o){return o.h.no+'番'+o.h.nm}
     function step(ts){
       if(!cv.isConnected){stop();return}
-      if(t0==null)t0=ts;var t=red?tEnd:(ts-t0)*speed/T;if(t>tEnd)t=tEnd;
+      if(t0==null)t0=ts;var t=Math.max(0,(ts-t0)*speed/T);if(t>tEnd)t=tEnd;
       var l=frame(run,t);draw(l,t,t>=1);
       var now=Date.now();if(!step.lv||now-step.lv>120){showLive(l);step.lv=now}
       var o=l.slice().sort(function(a,b){return b.dm-a.dm});
