@@ -931,56 +931,36 @@ function simRun(hs,pred){
   return {pace:SIM_PACE[pi][0],dir:d,order:res};
 }
 function simDist(rc){var m=String(rc.g||'').match(/\d{3,4}/);return m?parseInt(m[0],10):1600}
-// 毛色（KeiroCD）→ [胴, たてがみ・脚先]。登録の毛色に寄せた描画用の色（2026-11-07）
-var SIM_COAT={'01':['#b8642c','#8a4519'],'02':['#7f3f1c','#4e2510'],'03':['#7b4a28','#1e1612'],'04':['#4a2c1b','#160f0b'],
-  '05':['#2f221c','#100c0a'],'06':['#1c1919','#0c0b0b'],'07':['#b9b6b0','#6f6c68'],'08':['#b98a64','#7a5236'],
-  '09':['#93705a','#2a1f19'],'10':['#6c6b72','#2b2a2e'],'11':['#f1eee6','#c9c4b8']};
-function simDarken(hex,k){var n=parseInt(hex.slice(1),16),r=(n>>16)&255,g=(n>>8)&255,b=n&255;
-  return 'rgb('+Math.round(r*k)+','+Math.round(g*k)+','+Math.round(b*k)+')'}
-// 横から見た馬（右向き）。(x,y)=足元、u=大きさ、ph=脚の位相
-function simDrawHorse(ctx,x,y,u,ph,coat,wk,no){
-  var cb=coat[0],cd=coat[1],bob=Math.sin(ph*2)*1.1*u,by=y-25*u+bob;
-  ctx.fillStyle='rgba(0,0,0,.2)';ctx.beginPath();ctx.ellipse(x+2*u,y+1.5*u,21*u,3.2*u,0,0,Math.PI*2);ctx.fill();
-  ctx.lineCap='round';ctx.lineJoin='round';
-  function leg(hx,a1,a2,col){
-    var hy=by+4*u,l1=10.5*u,l2=11*u,kx=hx+Math.sin(a1)*l1,ky=hy+Math.cos(a1)*l1,
-        fx=kx+Math.sin(a1+a2)*l2,fy=Math.min(y,ky+Math.cos(a1+a2)*l2);
-    ctx.strokeStyle=col;ctx.lineWidth=3.4*u;ctx.beginPath();ctx.moveTo(hx,hy);ctx.lineTo(kx,ky);ctx.lineTo(fx,fy);ctx.stroke();
-    ctx.strokeStyle=cd;ctx.lineWidth=3.6*u;ctx.beginPath();ctx.moveTo(fx-0.3*u,fy-1.6*u);ctx.lineTo(fx+0.6*u,fy);ctx.stroke()}
-  // 襲歩: 後ろ左→後ろ右→前左→前右の順に着地
-  function ang(p,front){var s=Math.sin(p);
-    return front?[0.15+0.62*s,-0.9*Math.max(0,Math.cos(p))]:[-0.05+0.55*s,0.75*Math.max(0,Math.cos(p+0.6))-0.25]}
-  var far=simDarken(cb,0.72);
-  var a=ang(ph+0.5,false);leg(x-12*u,a[0],a[1],far);a=ang(ph+2.4,true);leg(x+12*u,a[0],a[1],far);
-  // 尾
-  ctx.strokeStyle=cd;ctx.lineWidth=3*u;ctx.beginPath();ctx.moveTo(x-18*u,by-3*u);
-  ctx.quadraticCurveTo(x-29*u,by-6*u+Math.sin(ph)*2*u,x-30*u,by+7*u);ctx.stroke();
-  // 胴・首・頭
-  ctx.fillStyle=cb;ctx.beginPath();ctx.ellipse(x,by,19*u,8.6*u,0,0,Math.PI*2);ctx.fill();
-  ctx.beginPath();ctx.moveTo(x+11*u,by-5*u);ctx.lineTo(x+21*u,by-17*u);ctx.lineTo(x+26*u,by-13*u);ctx.lineTo(x+18*u,by+3*u);ctx.closePath();ctx.fill();
-  ctx.beginPath();ctx.ellipse(x+27*u,by-14.5*u,7.2*u,3.5*u,0.55,0,Math.PI*2);ctx.fill();
-  ctx.beginPath();ctx.moveTo(x+22*u,by-19*u);ctx.lineTo(x+23.5*u,by-23*u);ctx.lineTo(x+25*u,by-18.5*u);ctx.fill();
-  ctx.strokeStyle=cd;ctx.lineWidth=2.4*u;ctx.beginPath();ctx.moveTo(x+12*u,by-7*u);ctx.lineTo(x+21.5*u,by-18*u);ctx.stroke();
-  // ゼッケン（白地に馬番）
-  ctx.fillStyle='#ffffff';ctx.fillRect(x-7*u,by-3.5*u,11*u,8*u);ctx.strokeStyle='rgba(0,0,0,.35)';ctx.lineWidth=0.8*u;
-  ctx.strokeRect(x-7*u,by-3.5*u,11*u,8*u);
-  ctx.fillStyle='#111';ctx.font='900 '+(6.8*u).toFixed(1)+'px Outfit,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillText(String(no),x-1.5*u,by+0.6*u);ctx.textBaseline='alphabetic';
-  // 手前の脚
-  a=ang(ph,false);leg(x-10*u,a[0],a[1],cb);a=ang(ph+1.9,true);leg(x+14*u,a[0],a[1],cb);
-  // 騎手（帽子・勝負服は枠の色）
-  var col=SIM_WK[wk],ol='rgba(20,20,30,.7)';
-  ctx.strokeStyle='#e9e2d0';ctx.lineWidth=2.6*u;ctx.beginPath();ctx.moveTo(x+1*u,by-9*u);ctx.lineTo(x+3*u,by-4*u);ctx.lineTo(x+7*u,by-6*u);ctx.stroke();
-  ctx.fillStyle=col;ctx.strokeStyle=ol;ctx.lineWidth=0.9*u;
-  ctx.beginPath();ctx.ellipse(x+3*u,by-12.5*u,7*u,3.8*u,-0.28,0,Math.PI*2);ctx.fill();ctx.stroke();
-  ctx.strokeStyle=col;ctx.lineWidth=2.2*u;ctx.beginPath();ctx.moveTo(x+7*u,by-12*u);ctx.lineTo(x+15*u,by-10*u+Math.sin(ph*2)*u);ctx.stroke();
-  ctx.fillStyle=col;ctx.strokeStyle=ol;ctx.beginPath();ctx.arc(x+10.5*u,by-17.5*u,3.4*u,0,Math.PI*2);ctx.fill();ctx.stroke();
-  ctx.beginPath();ctx.moveTo(x+12.5*u,by-17*u);ctx.lineTo(x+15.5*u,by-16.2*u);ctx.stroke();
+// 馬の絵（サイトと同じ assets/horse-<毛色>.png。左向きの絵）。読み込みは1回だけ（2026-11-07）
+var SIM_IMG={};
+function simImg(code){var k=(code&&DATA.coat[code])?code:'icon';
+  if(!SIM_IMG[k]){var i=new Image();i.decoding='async';i.src=k==='icon'?ICON:'assets/horse-'+k+'.png';SIM_IMG[k]=i}
+  return SIM_IMG[k]}
+// 横から見た馬。(x,y)=足元、u=大きさ、ph=走りの位相、right=右へ走る（絵を左右反転）
+function simDrawHorse(ctx,x,y,u,ph,im,wk,no,right){
+  var hop=Math.abs(Math.sin(ph))*5*u,h=46*u,w=h*216/239,tilt=Math.cos(ph)*0.07,sq=1-0.06*(1-Math.abs(Math.sin(ph)));
+  // 影と土ぼこり
+  ctx.fillStyle='rgba(0,0,0,'+(0.22-hop/u*0.02).toFixed(3)+')';ctx.beginPath();
+  ctx.ellipse(x,y+1*u,w*0.38,3*u,0,0,Math.PI*2);ctx.fill();
+  var back=right?-1:1;
+  for(var k=0;k<3;k++){var f=((ph/Math.PI+k/3)%1+1)%1;
+    ctx.fillStyle='rgba(255,255,255,'+(0.35*(1-f)).toFixed(3)+')';ctx.beginPath();
+    ctx.arc(x+back*(w*0.3+f*16*u),y-1*u-f*5*u,(2+f*4)*u,0,Math.PI*2);ctx.fill()}
+  ctx.save();ctx.translate(x,y-hop);ctx.rotate(right?tilt:-tilt);if(right)ctx.scale(-1,1);ctx.scale(1,sq);
+  if(im&&im.complete&&im.naturalWidth)ctx.drawImage(im,-w/2,-h,w,h);
+  else{ctx.fillStyle='#8a5a3a';ctx.beginPath();ctx.ellipse(0,-h*0.4,w*0.4,h*0.3,0,0,Math.PI*2);ctx.fill()}
+  ctx.restore();
+  // 馬番の札（枠の色）。胴のあたり
+  var bx=x+(right?-1:1)*w*0.12,byy=y-hop-h*0.36,r=7*u;
+  ctx.fillStyle=SIM_WK[wk];ctx.strokeStyle='#1b1b2f';ctx.lineWidth=1.4*u;ctx.beginPath();
+  if(ctx.roundRect)ctx.roundRect(bx-r,byy-r,2*r,2*r,2.5*u);else ctx.rect(bx-r,byy-r,2*r,2*r);ctx.fill();ctx.stroke();
+  ctx.fillStyle=SIM_WKT[wk];ctx.font='900 '+(9*u).toFixed(1)+'px Outfit,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(String(no),bx,byy+0.5*u);ctx.textBaseline='alphabetic';
 }
 function simPanel(rc){
   if(!rc.h||rc.h.length<2)return null;
   var hs=simHorses(rc);if(hs.length<2)return null;
-  var coat={};rc.h.forEach(function(h){coat[h[0]]=SIM_COAT[h[7]]||SIM_COAT['03']});
+  var coat={};rc.h.forEach(function(h){coat[h[0]]=simImg(h[7])});
   var D=simDist(rc),ccw=['04','05','07'].indexOf(String(rc.code))>=0,sf=String(rc.g||'').charAt(0),turf=sf!=='ダ';
   var bsName=basisOf()==='final'?'市場込み':'AI予測';
   var d=document.createElement('details');d.className='spd sim';
@@ -1030,20 +1010,21 @@ function simPanel(rc){
       var p=mmPt(g.sg-(D-o.dm)*g.P/SIM_LAP);ctx.beginPath();ctx.arc(p[0],p[1],Math.max(2.2,g.bw*0.42),0,Math.PI*2);
       ctx.fillStyle=SIM_WK[o.h.wk||0];ctx.fill();ctx.lineWidth=0.8;ctx.strokeStyle='#1b1b2f';ctx.stroke()});
   }
-  function X(m){return (m-cam)*G.ppm}
+  var dirR=ccw;   // 左回りは右へ、右回りは左へ走る（スタンドから見た直線の向き）
+  function X(m){var v=(m-cam)*G.ppm;return dirR?v:G.W-v}
   function drawScene(ctx,lead){
     var g=G,W=g.W,H=g.H,u=g.u;
     var sky=ctx.createLinearGradient(0,0,0,H*0.3);sky.addColorStop(0,'#8fd0ff');sky.addColorStop(1,'#d9f0ff');
     ctx.fillStyle=sky;ctx.fillRect(0,0,W,H*0.3);
     // スタンド（遠景。ゆっくり流れる）
-    var off=((cam*g.ppm*0.25)%60+60)%60;
+    var sg=dirR?1:-1,off=((sg*cam*g.ppm*0.25)%60+60)%60;
     ctx.fillStyle='#5b6474';ctx.fillRect(0,H*0.14,W,H*0.2);
     ctx.fillStyle='#3f4655';for(var sx=-off;sx<W;sx+=60)ctx.fillRect(sx,H*0.11,40,H*0.05);
     ctx.fillStyle='rgba(255,255,255,.35)';
-    for(var cx=-((cam*g.ppm*0.25)%9);cx<W;cx+=9)for(var cy=H*0.19;cy<H*0.32;cy+=6)ctx.fillRect(cx+(cy%2),cy,3,2);
+    for(var cx=-(((sg*cam*g.ppm*0.25)%9)+9)%9;cx<W;cx+=9)for(var cy=H*0.19;cy<H*0.32;cy+=6)ctx.fillRect(cx+(cy%2),cy,3,2);
     // コース（芝・ダート）。刈り目の縞で流れを出す
     ctx.fillStyle=turf?'#4fae55':'#b98b5a';ctx.fillRect(0,H*0.34,W,H*0.66);
-    var st2=40*g.ppm,so=((cam*g.ppm)%(2*st2)+2*st2)%(2*st2);
+    var st2=40*g.ppm,so=((sg*cam*g.ppm)%(2*st2)+2*st2)%(2*st2);
     ctx.fillStyle=turf?'rgba(255,255,255,.07)':'rgba(255,255,255,.06)';
     for(var x0=-so;x0<W;x0+=2*st2)ctx.fillRect(x0,H*0.36,st2,H*0.6);
     // 奥のラチ・ハロン棒・ゴール板
@@ -1060,7 +1041,7 @@ function simPanel(rc){
       ctx.strokeStyle='rgba(255,255,255,.75)';ctx.lineWidth=2*u;ctx.beginPath();ctx.moveTo(gx,H*0.37);ctx.lineTo(gx,H*0.96);ctx.stroke()}
     if(cam<60){var sx2=X(0);ctx.fillStyle='rgba(120,130,150,.85)';ctx.fillRect(sx2-6*u,H*0.38,8*u,H*0.55)}
     // 手前のラチ（速く流れる）
-    var po=((cam*g.ppm*1.1)%(18*u)+18*u)%(18*u);
+    var po=((sg*cam*g.ppm*1.1)%(18*u)+18*u)%(18*u);
     ctx.fillStyle='#ffffff';ctx.fillRect(0,H*0.93,W,3*u);
     for(var p0=-po;p0<W;p0+=18*u)ctx.fillRect(p0,H*0.93,2*u,H*0.07);
   }
@@ -1077,7 +1058,7 @@ function simPanel(rc){
     list.slice().sort(function(a,b){return lanes[a.h.no]-lanes[b.h.no]||a.dm-b.dm}).forEach(function(o){
       if(o.dm<cam-30||o.dm>cam+vm+30)return;
       var L=lanes[o.h.no],f=L/(g.NL-1),y=g.yFar+(g.yNear-g.yFar)*f,u=g.u*(0.82+0.3*f);
-      simDrawHorse(ctx,X(o.dm),y,u,o.dm/6.5*Math.PI*2*0.5+o.h.no*1.7,coat[o.h.no],o.h.wk||0,o.h.no)});
+      simDrawHorse(ctx,X(o.dm),y,u,o.dm/7*Math.PI+o.h.no*1.7,coat[o.h.no],o.h.wk||0,o.h.no,dirR)});
   }
   function draw(list,t,fin){
     var ctx=cv.getContext('2d');ctx.setTransform(G.dpr,0,0,G.dpr,0,0);
@@ -1165,6 +1146,7 @@ function simPanel(rc){
     out.appendChild(el('div','spd-note','1着の割合が'+bsName+'の勝率とずれるのは、展開の抽選（ペースと位置取りの相性）と出遅れの分です。'));
     say.textContent='1000回走らせた結果です（アニメーションなし）';
   };
+  hs.forEach(function(x){var im=coat[x.no];if(im&&!im.complete)im.addEventListener('load',function(){if(d.open&&!timer)idle()})});
   d.addEventListener('toggle',function(){st.simopen=d.open;if(d.open&&!timer)idle()});
   if(d.open)setTimeout(function(){if(!timer)idle()},0);
   return d;
