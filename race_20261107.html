@@ -886,7 +886,7 @@ function spdPanelV1(rc){
 // 位置取り（rc.pos の4角。0=先頭〜1=最後方。レース内で0〜1に広げる）×ペースで有利不利を付けて、
 // ガンベル乱数で着順を決める（Plackett-Luce）。ペースの効きと出遅れを除けば、
 // 何度も走らせたときの1着の割合は勝率と一致する。表示の位置・着差は演出で、タイムとは関係ない。
-var SIM_K=1.2,SIM_LATE=0.03,SIM_LATE_PEN=0.8,SIM_LAP=2000,SIM_VIS=7;   // SIM_VIS: 隊列・着差を見やすく広げる倍率（演出）
+var SIM_K=1.2,SIM_LATE=0.03,SIM_LATE_PEN=0.8,SIM_LAP=2000,SIM_VIS=4;   // SIM_VIS: 隊列・着差を見やすく広げる倍率（演出）
 var SIM_PACE=[['スロー',-1],['ミドル',0],['ハイ',1]];
 var SIM_WK=['#8c8271','#ffffff','#22252e','#e8362f','#2f7ad6','#ffd83d','#2aa050','#f08a1c','#f3a0b7'];
 var SIM_WKT=['#fff','#1b1b2f','#fff','#fff','#fff','#1b1b2f','#fff','#fff','#1b1b2f'];
@@ -931,11 +931,57 @@ function simRun(hs,pred){
   return {pace:SIM_PACE[pi][0],dir:d,order:res};
 }
 function simDist(rc){var m=String(rc.g||'').match(/\d{3,4}/);return m?parseInt(m[0],10):1600}
+// 毛色（KeiroCD）→ [胴, たてがみ・脚先]。登録の毛色に寄せた描画用の色（2026-11-07）
+var SIM_COAT={'01':['#b8642c','#8a4519'],'02':['#7f3f1c','#4e2510'],'03':['#7b4a28','#1e1612'],'04':['#4a2c1b','#160f0b'],
+  '05':['#2f221c','#100c0a'],'06':['#1c1919','#0c0b0b'],'07':['#b9b6b0','#6f6c68'],'08':['#b98a64','#7a5236'],
+  '09':['#93705a','#2a1f19'],'10':['#6c6b72','#2b2a2e'],'11':['#f1eee6','#c9c4b8']};
+function simDarken(hex,k){var n=parseInt(hex.slice(1),16),r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  return 'rgb('+Math.round(r*k)+','+Math.round(g*k)+','+Math.round(b*k)+')'}
+// 横から見た馬（右向き）。(x,y)=足元、u=大きさ、ph=脚の位相
+function simDrawHorse(ctx,x,y,u,ph,coat,wk,no){
+  var cb=coat[0],cd=coat[1],bob=Math.sin(ph*2)*1.1*u,by=y-25*u+bob;
+  ctx.fillStyle='rgba(0,0,0,.2)';ctx.beginPath();ctx.ellipse(x+2*u,y+1.5*u,21*u,3.2*u,0,0,Math.PI*2);ctx.fill();
+  ctx.lineCap='round';ctx.lineJoin='round';
+  function leg(hx,a1,a2,col){
+    var hy=by+4*u,l1=10.5*u,l2=11*u,kx=hx+Math.sin(a1)*l1,ky=hy+Math.cos(a1)*l1,
+        fx=kx+Math.sin(a1+a2)*l2,fy=Math.min(y,ky+Math.cos(a1+a2)*l2);
+    ctx.strokeStyle=col;ctx.lineWidth=3.4*u;ctx.beginPath();ctx.moveTo(hx,hy);ctx.lineTo(kx,ky);ctx.lineTo(fx,fy);ctx.stroke();
+    ctx.strokeStyle=cd;ctx.lineWidth=3.6*u;ctx.beginPath();ctx.moveTo(fx-0.3*u,fy-1.6*u);ctx.lineTo(fx+0.6*u,fy);ctx.stroke()}
+  // 襲歩: 後ろ左→後ろ右→前左→前右の順に着地
+  function ang(p,front){var s=Math.sin(p);
+    return front?[0.15+0.62*s,-0.9*Math.max(0,Math.cos(p))]:[-0.05+0.55*s,0.75*Math.max(0,Math.cos(p+0.6))-0.25]}
+  var far=simDarken(cb,0.72);
+  var a=ang(ph+0.5,false);leg(x-12*u,a[0],a[1],far);a=ang(ph+2.4,true);leg(x+12*u,a[0],a[1],far);
+  // 尾
+  ctx.strokeStyle=cd;ctx.lineWidth=3*u;ctx.beginPath();ctx.moveTo(x-18*u,by-3*u);
+  ctx.quadraticCurveTo(x-29*u,by-6*u+Math.sin(ph)*2*u,x-30*u,by+7*u);ctx.stroke();
+  // 胴・首・頭
+  ctx.fillStyle=cb;ctx.beginPath();ctx.ellipse(x,by,19*u,8.6*u,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.moveTo(x+11*u,by-5*u);ctx.lineTo(x+21*u,by-17*u);ctx.lineTo(x+26*u,by-13*u);ctx.lineTo(x+18*u,by+3*u);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.ellipse(x+27*u,by-14.5*u,7.2*u,3.5*u,0.55,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.moveTo(x+22*u,by-19*u);ctx.lineTo(x+23.5*u,by-23*u);ctx.lineTo(x+25*u,by-18.5*u);ctx.fill();
+  ctx.strokeStyle=cd;ctx.lineWidth=2.4*u;ctx.beginPath();ctx.moveTo(x+12*u,by-7*u);ctx.lineTo(x+21.5*u,by-18*u);ctx.stroke();
+  // ゼッケン（白地に馬番）
+  ctx.fillStyle='#ffffff';ctx.fillRect(x-7*u,by-3.5*u,11*u,8*u);ctx.strokeStyle='rgba(0,0,0,.35)';ctx.lineWidth=0.8*u;
+  ctx.strokeRect(x-7*u,by-3.5*u,11*u,8*u);
+  ctx.fillStyle='#111';ctx.font='900 '+(6.8*u).toFixed(1)+'px Outfit,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(String(no),x-1.5*u,by+0.6*u);ctx.textBaseline='alphabetic';
+  // 手前の脚
+  a=ang(ph,false);leg(x-10*u,a[0],a[1],cb);a=ang(ph+1.9,true);leg(x+14*u,a[0],a[1],cb);
+  // 騎手（帽子・勝負服は枠の色）
+  var col=SIM_WK[wk],ol='rgba(20,20,30,.7)';
+  ctx.strokeStyle='#e9e2d0';ctx.lineWidth=2.6*u;ctx.beginPath();ctx.moveTo(x+1*u,by-9*u);ctx.lineTo(x+3*u,by-4*u);ctx.lineTo(x+7*u,by-6*u);ctx.stroke();
+  ctx.fillStyle=col;ctx.strokeStyle=ol;ctx.lineWidth=0.9*u;
+  ctx.beginPath();ctx.ellipse(x+3*u,by-12.5*u,7*u,3.8*u,-0.28,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.strokeStyle=col;ctx.lineWidth=2.2*u;ctx.beginPath();ctx.moveTo(x+7*u,by-12*u);ctx.lineTo(x+15*u,by-10*u+Math.sin(ph*2)*u);ctx.stroke();
+  ctx.fillStyle=col;ctx.strokeStyle=ol;ctx.beginPath();ctx.arc(x+10.5*u,by-17.5*u,3.4*u,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x+12.5*u,by-17*u);ctx.lineTo(x+15.5*u,by-16.2*u);ctx.stroke();
+}
 function simPanel(rc){
   if(!rc.h||rc.h.length<2)return null;
   var hs=simHorses(rc);if(hs.length<2)return null;
-  var D=simDist(rc),ccw=['04','05','07'].indexOf(String(rc.code))>=0;
-  var turf=String(rc.g||'').charAt(0)!=='ダ';
+  var coat={};rc.h.forEach(function(h){coat[h[0]]=SIM_COAT[h[7]]||SIM_COAT['03']});
+  var D=simDist(rc),ccw=['04','05','07'].indexOf(String(rc.code))>=0,sf=String(rc.g||'').charAt(0),turf=sf!=='ダ';
   var bsName=basisOf()==='final'?'市場込み':'AI予測';
   var d=document.createElement('details');d.className='spd sim';
   if(st.simopen)d.open=true;
@@ -956,53 +1002,100 @@ function simPanel(rc){
   var speed=st.simsp||1;bSp.textContent='速さ '+speed+'倍';
   bSp.onclick=function(){speed=speed===1?2:(speed===2?4:1);st.simsp=speed;bSp.textContent='速さ '+speed+'倍'};
 
-  // ---- コース（上から見た楕円。下の直線がゴール前） ----
-  var G=null;
+  // ---- 横から見た中継風の画面。カメラは先頭を追う ----
+  var G=null,cam=null,lanes={};
   function geo(){
-    var W=Math.max(260,Math.min(cvw.clientWidth||320,720)),H=Math.round(W*0.58),dpr=window.devicePixelRatio||1;
+    var W=Math.max(280,Math.min(cvw.clientWidth||320,720)),H=Math.round(W*0.66),dpr=window.devicePixelRatio||1;
     cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);cv.style.width=W+'px';cv.style.height=H+'px';
-    var bw=Math.max(26,Math.round(H*0.17)),m=10,R=H/2-m-bw/2,cy=H/2,xa=m+bw/2+R,xb=W-m-bw/2-R,Ls=xb-xa;
-    var rh=Math.max(5,Math.min(8,W/52));
-    G={W:W,H:H,dpr:dpr,bw:bw,R:R,cy:cy,xa:xa,xb:xb,Ls:Ls,P:2*Ls+2*Math.PI*R,rh:rh,sg:Ls*0.82};
+    var u=W/360;
+    G={W:W,H:H,dpr:dpr,u:u,ppm:W/150,yFar:H*0.47,yNear:H*0.9,NL:6};
+    // 小さなコース全体図（右上）
+    var mw=Math.round(W*0.3),mh=Math.round(mw*0.5),mx=W-mw-6,my=6,bw=Math.max(5,mh*0.16),R=mh/2-3-bw/2;
+    G.mm={x:mx,y:my,w:mw,h:mh,bw:bw,R:R,cy:my+mh/2,xa:mx+3+bw/2+R,xb:mx+mw-3-bw/2-R};
+    G.mm.Ls=G.mm.xb-G.mm.xa;G.mm.P=2*G.mm.Ls+2*Math.PI*R;G.mm.sg=G.mm.Ls*0.82;
   }
-  function pt(s,off){       // 道のり s（px）と外向きの横ずれ off（px）→ 画面座標
-    var g=G,P=g.P;s=((s%P)+P)%P;var x,y,nx,ny,a;
-    if(s<g.Ls){x=g.xa+s;y=g.cy+g.R;nx=0;ny=1}
-    else if(s<g.Ls+Math.PI*g.R){a=(s-g.Ls)/g.R;x=g.xb+g.R*Math.sin(a);y=g.cy+g.R*Math.cos(a);nx=Math.sin(a);ny=Math.cos(a)}
-    else if(s<2*g.Ls+Math.PI*g.R){x=g.xb-(s-g.Ls-Math.PI*g.R);y=g.cy-g.R;nx=0;ny=-1}
-    else{a=(s-2*g.Ls-Math.PI*g.R)/g.R;x=g.xa-g.R*Math.sin(a);y=g.cy-g.R*Math.cos(a);nx=-Math.sin(a);ny=-Math.cos(a)}
-    x+=nx*off;y+=ny*off;
-    if(!ccw)x=g.W-x;          // 右回りは左右反転（下の直線を右から左へ走る）
-    return [x,y];
+  function mmPt(s){var g=G.mm,P=g.P;s=((s%P)+P)%P;var x,y,a;
+    if(s<g.Ls){x=g.xa+s;y=g.cy+g.R}
+    else if(s<g.Ls+Math.PI*g.R){a=(s-g.Ls)/g.R;x=g.xb+g.R*Math.sin(a);y=g.cy+g.R*Math.cos(a)}
+    else if(s<2*g.Ls+Math.PI*g.R){x=g.xb-(s-g.Ls-Math.PI*g.R);y=g.cy-g.R}
+    else{a=(s-2*g.Ls-Math.PI*g.R)/g.R;x=g.xa-g.R*Math.sin(a);y=g.cy-g.R*Math.cos(a)}
+    if(!ccw)x=2*g.x+g.w-x;return [x,y]}
+  function drawMini(ctx,list){
+    var g=G.mm;ctx.fillStyle='rgba(255,253,246,.88)';ctx.strokeStyle='rgba(20,20,30,.55)';ctx.lineWidth=1.5;
+    ctx.beginPath();if(ctx.roundRect)ctx.roundRect(g.x,g.y,g.w,g.h,6);else ctx.rect(g.x,g.y,g.w,g.h);ctx.fill();ctx.stroke();
+    ctx.beginPath();for(var i=0;i<=60;i++){var p=mmPt(i/60*g.P);if(i)ctx.lineTo(p[0],p[1]);else ctx.moveTo(p[0],p[1])}
+    ctx.closePath();ctx.lineWidth=g.bw;ctx.strokeStyle=turf?'#5cb85f':'#c29467';ctx.stroke();
+    var q=mmPt(g.sg);ctx.fillStyle='#e8362f';ctx.fillRect(q[0]-1,q[1]-g.bw/2-1,2,g.bw+2);
+    list.slice().sort(function(a,b){return a.dm-b.dm}).forEach(function(o){
+      var p=mmPt(g.sg-(D-o.dm)*g.P/SIM_LAP);ctx.beginPath();ctx.arc(p[0],p[1],Math.max(2.2,g.bw*0.42),0,Math.PI*2);
+      ctx.fillStyle=SIM_WK[o.h.wk||0];ctx.fill();ctx.lineWidth=0.8;ctx.strokeStyle='#1b1b2f';ctx.stroke()});
   }
-  function sOf(dm){return G.sg-(D-dm)*G.P/SIM_LAP}   // 走った距離（m）→ 道のり（px）
-  function drawCourse(ctx){
-    var g=G;ctx.fillStyle=turf?'#9fd99a':'#cfe7b8';ctx.fillRect(0,0,g.W,g.H);
-    function oval(r){ctx.beginPath();
-      for(var i=0;i<=120;i++){var p=pt(i/120*g.P,r);if(i)ctx.lineTo(p[0],p[1]);else ctx.moveTo(p[0],p[1])}ctx.closePath()}
-    oval(0);ctx.lineWidth=g.bw;ctx.strokeStyle=turf?'#4fae55':'#b98b5a';ctx.stroke();
-    ctx.lineWidth=2;ctx.strokeStyle='#ffffff';oval(-g.bw/2);ctx.stroke();oval(g.bw/2);ctx.stroke();
-    var a=pt(g.sg,-g.bw/2-2),b=pt(g.sg,g.bw/2+4),c=pt(g.sg,-g.bw/2-11);
-    ctx.strokeStyle='#e8362f';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();
-    ctx.fillStyle='#20243a';ctx.font='900 10px "Zen Maru Gothic",sans-serif';ctx.textAlign='center';
-    ctx.fillText('ゴール',c[0],c[1]+3);
-    var sf=String(rc.g||'').charAt(0);ctx.fillText((sf==='障'?'障害':(turf?'芝':'ダート'))+D+'m・'+(ccw?'左回り':'右回り'),g.W/2,g.cy+4);
+  function X(m){return (m-cam)*G.ppm}
+  function drawScene(ctx,lead){
+    var g=G,W=g.W,H=g.H,u=g.u;
+    var sky=ctx.createLinearGradient(0,0,0,H*0.3);sky.addColorStop(0,'#8fd0ff');sky.addColorStop(1,'#d9f0ff');
+    ctx.fillStyle=sky;ctx.fillRect(0,0,W,H*0.3);
+    // スタンド（遠景。ゆっくり流れる）
+    var off=((cam*g.ppm*0.25)%60+60)%60;
+    ctx.fillStyle='#5b6474';ctx.fillRect(0,H*0.14,W,H*0.2);
+    ctx.fillStyle='#3f4655';for(var sx=-off;sx<W;sx+=60)ctx.fillRect(sx,H*0.11,40,H*0.05);
+    ctx.fillStyle='rgba(255,255,255,.35)';
+    for(var cx=-((cam*g.ppm*0.25)%9);cx<W;cx+=9)for(var cy=H*0.19;cy<H*0.32;cy+=6)ctx.fillRect(cx+(cy%2),cy,3,2);
+    // コース（芝・ダート）。刈り目の縞で流れを出す
+    ctx.fillStyle=turf?'#4fae55':'#b98b5a';ctx.fillRect(0,H*0.34,W,H*0.66);
+    var st2=40*g.ppm,so=((cam*g.ppm)%(2*st2)+2*st2)%(2*st2);
+    ctx.fillStyle=turf?'rgba(255,255,255,.07)':'rgba(255,255,255,.06)';
+    for(var x0=-so;x0<W;x0+=2*st2)ctx.fillRect(x0,H*0.36,st2,H*0.6);
+    // 奥のラチ・ハロン棒・ゴール板
+    ctx.fillStyle='#ffffff';ctx.fillRect(0,H*0.36,W,3*u);
+    var vm=W/g.ppm;
+    for(var k=1;k*200<D;k++){var pm=D-k*200;if(pm<cam-20||pm>cam+vm+20)continue;var px=X(pm);
+      ctx.fillStyle='#ffffff';ctx.fillRect(px-1.5*u,H*0.25,3*u,H*0.12);ctx.fillStyle='#e8362f';ctx.fillRect(px-1.5*u,H*0.25,3*u,H*0.03);
+      ctx.fillStyle='#20243a';ctx.font='900 '+(10*u).toFixed(0)+'px Outfit,sans-serif';ctx.textAlign='center';
+      ctx.fillText(String(k*200),px,H*0.24)}
+    if(D>=cam-30&&D<=cam+vm+30){var gx=X(D);
+      ctx.fillStyle='#ffffff';ctx.fillRect(gx-2*u,H*0.16,4*u,H*0.22);ctx.fillStyle='#e8362f';ctx.fillRect(gx-12*u,H*0.12,24*u,10*u);
+      ctx.fillStyle='#fff';ctx.font='900 '+(7*u).toFixed(0)+'px "Zen Maru Gothic",sans-serif';ctx.textAlign='center';
+      ctx.fillText('ゴール',gx,H*0.12+7.5*u);
+      ctx.strokeStyle='rgba(255,255,255,.75)';ctx.lineWidth=2*u;ctx.beginPath();ctx.moveTo(gx,H*0.37);ctx.lineTo(gx,H*0.96);ctx.stroke()}
+    if(cam<60){var sx2=X(0);ctx.fillStyle='rgba(120,130,150,.85)';ctx.fillRect(sx2-6*u,H*0.38,8*u,H*0.55)}
+    // 手前のラチ（速く流れる）
+    var po=((cam*g.ppm*1.1)%(18*u)+18*u)%(18*u);
+    ctx.fillStyle='#ffffff';ctx.fillRect(0,H*0.93,W,3*u);
+    for(var p0=-po;p0<W;p0+=18*u)ctx.fillRect(p0,H*0.93,2*u,H*0.07);
   }
   function drawHorses(ctx,list){
-    var g=G;
-    // 内から詰めて並べる（前後に馬1頭分の幅以内で他の馬がいれば外へ）
-    var srt=list.slice().sort(function(a,b){return b.dm-a.dm}),placed=[],thr=2*g.rh*SIM_LAP/g.P;
+    var g=G,thr=46*g.u/g.ppm;
+    // 内（奥）から詰めて並べる。前後に馬1頭分以内で他の馬がいれば外（手前）へ。レーンはなめらかに移る
+    var srt=list.slice().sort(function(a,b){return b.dm-a.dm}),placed=[];
     srt.forEach(function(o){var ln=0;
-      while(ln<3&&placed.some(function(q){return q.ln===ln&&Math.abs(q.dm-o.dm)<thr}))ln++;
-      o.ln=ln;placed.push(o)});
-    var lw=(g.bw-2*g.rh-2)/3;
-    for(var i=srt.length-1;i>=0;i--){var o=srt[i];
-      var off=-g.bw/2+g.rh+1+(o.lat!=null?o.lat:o.ln*lw),p=pt(sOf(o.dm),off),wk=o.h.wk||0;
-      ctx.beginPath();ctx.arc(p[0],p[1],g.rh,0,Math.PI*2);ctx.fillStyle=SIM_WK[wk];ctx.fill();
-      ctx.lineWidth=1.5;ctx.strokeStyle='#1b1b2f';ctx.stroke();
-      ctx.fillStyle=SIM_WKT[wk];ctx.font='900 '+Math.round(g.rh*1.25)+'px Outfit,sans-serif';
-      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(o.h.no),p[0],p[1]+0.5);ctx.textBaseline='alphabetic'}
+      while(ln<g.NL-1&&placed.some(function(q){return q.ln===ln&&Math.abs(q.dm-o.dm)<thr}))ln++;
+      o.ln=ln;placed.push(o);
+      var cur=lanes[o.h.no],tg=o.lat!=null?o.lat:ln;
+      lanes[o.h.no]=cur==null||o.lat!=null?tg:cur+Math.max(-0.06,Math.min(0.06,tg-cur))});
+    var vm=g.W/g.ppm;
+    list.slice().sort(function(a,b){return lanes[a.h.no]-lanes[b.h.no]||a.dm-b.dm}).forEach(function(o){
+      if(o.dm<cam-30||o.dm>cam+vm+30)return;
+      var L=lanes[o.h.no],f=L/(g.NL-1),y=g.yFar+(g.yNear-g.yFar)*f,u=g.u*(0.82+0.3*f);
+      simDrawHorse(ctx,X(o.dm),y,u,o.dm/6.5*Math.PI*2*0.5+o.h.no*1.7,coat[o.h.no],o.h.wk||0,o.h.no)});
   }
+  function draw(list,t,fin){
+    var ctx=cv.getContext('2d');ctx.setTransform(G.dpr,0,0,G.dpr,0,0);
+    var lead=Math.max.apply(null,list.map(function(o){return o.dm}));
+    var tg=Math.min(lead,D+12)-(G.W/G.ppm)*0.66;
+    cam=tg;     // 先頭の位置は連続して動くので、そのまま追う（描画のコマ数に左右されない）
+    drawScene(ctx,lead);drawHorses(ctx,list);drawMini(ctx,list);
+    var rem=Math.max(0,Math.round((D-lead)/10)*10);
+    ctx.fillStyle='rgba(20,24,40,.78)';ctx.fillRect(6,6,G.W*0.36,22*G.u);
+    ctx.fillStyle='#fff';ctx.font='900 '+(11*G.u).toFixed(0)+'px "Zen Maru Gothic",sans-serif';ctx.textAlign='left';
+    ctx.fillText(fin?'ゴール':(t<=0?(sf==='障'?'障害':(turf?'芝':'ダート'))+D+'m':'残り '+rem+'m'),12,6+15*G.u);
+  }
+  function chip(x){return el('span','wk wk'+(x.wk||0),String(x.no))}
+  function showLive(list){
+    live.textContent='';var srt=list.slice().sort(function(a,b){return b.dm-a.dm}).slice(0,6);
+    live.appendChild(el('span','sim-ll','先頭から'));srt.forEach(function(o){live.appendChild(chip(o.h))})}
+  function idle(){geo();lanes={};cam=null;var run={dir:0,order:hs.map(function(x){return {h:x,mg:0,late:false}})};
+    draw(frame(run,0),0,false);live.textContent=''}
   function frame(run,t){      // t: 0=発走〜1=1着がゴール
     var S=run.dir>0?30:(run.dir<0?15:22),gr=Math.min(1,t/0.12),w=t<0.62?0:Math.min(1,(t-0.62)/0.38);
     w=w*w*(3-2*w);
@@ -1012,17 +1105,9 @@ function simPanel(rc){
       else if(t<0.75)e=x.e1+(x.e2-x.e1)*(t-0.55)/0.2;else e=x.e2;
       if(o.late&&t<0.35)e=Math.max(e,1);
       var gap=(1-w)*(e*S*gr+(o.late?8*Math.min(1,t/0.05):0)+Math.sin(t*40+x.no)*(t>0.02?0.8:0))+w*o.mg;
-      var lat=null;if(t<0.08){var gi=gate.indexOf(x),k=(1-t/0.08);
-        lat=(gi/Math.max(1,gate.length-1))*(G.bw-2*G.rh-2)*k}
+      var lat=null;if(t<0.06)lat=gate.indexOf(x)/Math.max(1,gate.length-1)*(G.NL-1);
       return {h:x,o:o,dm:D*t-gap*SIM_VIS,lat:lat}});
   }
-  function draw(list){var ctx=cv.getContext('2d');ctx.setTransform(G.dpr,0,0,G.dpr,0,0);drawCourse(ctx);drawHorses(ctx,list)}
-  function chip(x){var c=el('span','wk wk'+(x.wk||0),String(x.no));return c}
-  function showLive(list){
-    live.textContent='';var srt=list.slice().sort(function(a,b){return b.dm-a.dm}).slice(0,6);
-    live.appendChild(el('span','sim-ll','先頭から'));srt.forEach(function(o){live.appendChild(chip(o.h))})}
-  function idle(){geo();var run={dir:0,order:hs.map(function(x){return {h:x,mg:0,late:false}})};
-    var l=frame(run,0);draw(l);live.textContent=''}
   var timer=null;
   function stop(){if(timer){cancelAnimationFrame(timer);timer=null}}
   function result(run){
@@ -1037,15 +1122,16 @@ function simPanel(rc){
     out.appendChild(t);
   }
   function go(){
-    stop();out.textContent='';if(!G||!cvw.clientWidth)geo();
-    var run=simRun(hs,rc.pace),T=Math.min(18,Math.max(10,9+D/400))*1000,t0=null,said={},tEnd=1+(run.order[run.order.length-1].mg*SIM_VIS+10)/D;
+    stop();out.textContent='';geo();lanes={};cam=null;
+    var run=simRun(hs,rc.pace),T=Math.min(22,Math.max(12,10+D/300))*1000,t0=null,said={},
+        tEnd=1+(run.order[run.order.length-1].mg*SIM_VIS+40)/D;
     bGo.textContent='走行中…';
     var red=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     function name(o){return o.h.no+'番'+o.h.nm}
     function step(ts){
       if(!cv.isConnected){stop();return}
       if(t0==null)t0=ts;var t=red?tEnd:(ts-t0)*speed/T;if(t>tEnd)t=tEnd;
-      var l=frame(run,t);draw(l);
+      var l=frame(run,t);draw(l,t,t>=1);
       var now=Date.now();if(!step.lv||now-step.lv>120){showLive(l);step.lv=now}
       var o=l.slice().sort(function(a,b){return b.dm-a.dm});
       function once(k,txt){if(!said[k]&&t>=k){said[k]=1;say.textContent=txt}}
