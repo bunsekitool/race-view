@@ -380,6 +380,7 @@ details.spd.sim summary::after{content:'AIの勝率と展開の抽選で毎回�
 .sim-res td.n{font:900 12.5px/1 Outfit,sans-serif;white-space:nowrap}
 .sim-res td .wk{margin-right:5px;vertical-align:middle}
 .sim-res tr.s3 td{background:#fff3c4}
+.sim-ver{font:700 9.5px/1 Outfit,sans-serif;color:#a49a86;text-align:right;margin-top:6px}
 .sim-res small.late{margin-left:5px;color:#b3261e;font:900 10px/1 'Zen Maru Gothic',sans-serif}
 .pdg .spdb i{background:linear-gradient(180deg,#b9a7ff,#6d4fe0)}
 .pdg .spdb{min-width:26px}.pdg .nm2{max-width:7.5em}.pdg .spdt td.v{font-size:11.5px}
@@ -888,6 +889,7 @@ function spdPanelV1(rc){
 // 何度も走らせたときの1着の割合は勝率と一致する。表示の位置・着差は演出で、タイムとは関係ない。
 var SIM_K=1.2,SIM_LATE=0.03,SIM_LATE_PEN=0.8,SIM_LAP=2000,SIM_VIS=4;   // SIM_VIS: 隊列・着差を見やすく広げる倍率（演出）
 var SIM_PACE=[['スロー',-1],['ミドル',0],['ハイ',1]];
+var SIM_VER='11/07-4';   // 表示中のページが最新かを確かめるための版（変更のたびに上げる）
 var SIM_WK=['#8c8271','#ffffff','#22252e','#e8362f','#2f7ad6','#ffd83d','#2aa050','#f08a1c','#f3a0b7'];
 var SIM_WKT=['#fff','#1b1b2f','#fff','#fff','#fff','#1b1b2f','#fff','#fff','#1b1b2f'];
 function simPaceW(pred){
@@ -979,6 +981,7 @@ function simPanel(rc){
   var unk=hs.filter(function(x){return !x.known}).map(function(x){return x.no+'番'});
   if(unk.length)body.appendChild(el('div','spd-note','過去の位置取りが無く、中団の馬として扱った馬: '+unk.join('・')));
   body.appendChild(el('div','spd-note',DATA.simnote));
+  body.appendChild(el('div','sim-ver','版 '+SIM_VER));
   var speed=st.simsp||1;bSp.textContent='速さ '+speed+'倍';
   bSp.onclick=function(){speed=speed===1?2:(speed===2?4:1);st.simsp=speed;bSp.textContent='速さ '+speed+'倍'};
 
@@ -1104,14 +1107,18 @@ function simPanel(rc){
   }
   function go(){
     stop();out.textContent='';geo();lanes={};cam=null;
-    var run=simRun(hs,rc.pace),T=Math.min(22,Math.max(12,10+D/300))*1000,t0=null,said={},
+    var run=simRun(hs,rc.pace),T=Math.min(22,Math.max(12,10+D/300))*1000,tp=null,t=0,said={},
         tEnd=1+(run.order[run.order.length-1].mg*SIM_VIS+40)/D;
     bGo.textContent='走行中…';
     // 「視差効果を減らす」設定でも走らせる（ボタンを押して見に行く動きのため。2026-11-07 一瞬でゴールになる不具合の修正）
     function name(o){return o.h.no+'番'+o.h.nm}
     function step(ts){
       if(!cv.isConnected){stop();return}
-      if(t0==null)t0=ts;var t=Math.max(0,(ts-t0)*speed/T);if(t>tEnd)t=tEnd;
+      // 経過時間は端末の時計（performance.now）で測り、1コマで進むのは最大50msまで。
+      // 描画が止まったり時計が飛んだりしても、途中を飛ばして一瞬でゴールにならない（2026-11-07）
+      var now0=(window.performance&&performance.now)?performance.now():Date.now();
+      if(tp==null)tp=now0;var dt=Math.min(50,Math.max(0,now0-tp));tp=now0;
+      t+=dt*speed/T;if(t>tEnd)t=tEnd;
       var l=frame(run,t);draw(l,t,t>=1);
       var now=Date.now();if(!step.lv||now-step.lv>120){showLive(l);step.lv=now}
       var o=l.slice().sort(function(a,b){return b.dm-a.dm});
